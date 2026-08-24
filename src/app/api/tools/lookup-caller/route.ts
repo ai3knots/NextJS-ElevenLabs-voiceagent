@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Lead from "@/models/Lead";
+import CallLog from "@/models/CallLog";
 
 export async function POST(request: Request) {
   try {
@@ -36,6 +37,21 @@ export async function POST(request: Request) {
       });
     }
 
+    // Fetch the last 5 call logs for this lead to get extended context
+    const callLogs = await CallLog.find({ leadId: lead._id })
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    let recentCallsContext = "";
+    if (callLogs.length > 0) {
+      recentCallsContext = callLogs.map((log, index) => {
+        const date = new Date(log.createdAt).toLocaleDateString();
+        return `Call ${index + 1} (${date}): ${log.callSummary || "No summary available. Status: " + log.callStatus}`;
+      }).join(" | ");
+    } else {
+      recentCallsContext = "No past calls found.";
+    }
+
     // Map the database fields to the dynamic variables ElevenLabs expects
     const dynamicVariables = {
       found: "true",
@@ -45,7 +61,9 @@ export async function POST(request: Request) {
       last_completed_stage: lead.lastCompletedStage || "no_interaction",
       last_summary: lead.callSummary || lead.lastCallSummary || "No previous summary available.",
       company: lead.company || "",
-      context: lead.context || ""
+      context: lead.context || "",
+      recent_calls_context: recentCallsContext,
+      call_direction: "inbound" // Since this webhook only fires on incoming calls
     };
 
     console.log(`Webhook Response: ${JSON.stringify(dynamicVariables)}`);
