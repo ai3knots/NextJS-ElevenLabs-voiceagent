@@ -195,13 +195,15 @@ export async function POST(request: NextRequest) {
       finalStatus
     });
 
-    // Summary Text Generation
-    let summaryText =
-      oneLineSummary ||
+    // Summary Text Generation - Prioritize detailed transcript summary over 1-liner
+    const detailedSummary =
       details.analysis?.transcript_summary ||
       details.analysis?.summary ||
-      details.call_summary_title ||
+      details.transcript_summary ||
+      details.summary ||
       null;
+
+    let summaryText = detailedSummary || oneLineSummary || details.call_summary_title || null;
 
     if (!summaryText && Array.isArray(details.transcript)) {
       const transcriptMessages = details.transcript.map((turn: any) => {
@@ -219,6 +221,8 @@ export async function POST(request: NextRequest) {
     if (!outcome) {
       outcome = finalStatus;
     }
+
+    console.log(`📝 [PostCallWebhook] Final Summary Text: "${summaryText}"`);
 
     // 5. Look up Lead or Create New Lead
     let lead = null;
@@ -242,7 +246,7 @@ export async function POST(request: NextRequest) {
         elevenlabsConversationId: convId,
         callSummary: summaryText,
         lastCallOutcome: outcome,
-        lastCallSummary: oneLineSummary || summaryText,
+        lastCallSummary: summaryText,
         lastConversationId: convId,
         lastCompletedStage: lastCompletedStage || "no_interaction",
         context: followUpContext || summaryText || undefined,
@@ -257,7 +261,7 @@ export async function POST(request: NextRequest) {
         callStatus: finalStatus,
         callSummary: summaryText,
         lastCallOutcome: outcome,
-        lastCallSummary: oneLineSummary || summaryText,
+        lastCallSummary: summaryText,
         lastConversationId: convId,
         lastCompletedStage: lastCompletedStage || lead.lastCompletedStage || "no_interaction",
       };

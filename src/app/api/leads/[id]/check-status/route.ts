@@ -119,7 +119,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       callSummary: summaryText,
       callErrorReason: errorReason,
       lastCallOutcome: outcome,
-      lastCallSummary: oneLineSummary || summaryText,
+      lastCallSummary: summaryText || oneLineSummary,
       lastConversationId: convId,
       lastCompletedStage: lastCompletedStage || "no_interaction",
     };
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         $set: {
           callStatus: finalStatus,
           callOutcome: outcome,
-          callSummary: oneLineSummary || summaryText,
+          callSummary: summaryText || oneLineSummary,
           callDurationSecs: durationSecs,
           callErrorReason: errorReason,
           lastCompletedStage: lastCompletedStage || "no_interaction",
