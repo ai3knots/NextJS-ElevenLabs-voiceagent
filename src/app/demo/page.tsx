@@ -22,7 +22,7 @@ function ChatUI() {
   const [isTyping, setIsTyping] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
 
-  const { startSession, endSession, sendUserMessage, status, onError } = useConversation({
+  const { startSession, endSession, sendUserMessage, status } = useConversation({
     onConnect: () => {
       console.log('Connected to ElevenLabs Agent');
       setSessionStarted(true);
@@ -91,7 +91,6 @@ function ChatUI() {
     try {
       await startSession({
         agentId: 'agent_5601m0tgt63qe8tt5q9qcnfqf5wa', // Provided Agent ID
-        // @ts-expect-error textOnly is supported by the underlying client but might be missing in react types
         textOnly: true,
         dynamicVariables: {
           is_chat: "true"

@@ -238,6 +238,8 @@ export async function POST(request: NextRequest) {
     const isChat = dynamicVariables.is_chat === "true" || dynamicVariables.is_chat === true;
 
     // 6. Handle Chat vs Voice Call
+    let lead: any = null;
+    
     if (isChat) {
       console.log(`💬 [PostCallWebhook] Detected Web Chat. Saving standalone ChatLog.`);
       const ChatLog = (await import("@/models/ChatLog")).default;
@@ -251,7 +253,6 @@ export async function POST(request: NextRequest) {
       });
       console.log(`💬 [PostCallWebhook] Saved ChatLog ID: ${newChat._id}`);
     } else {
-      let lead = null;
       if (last10) {
         lead = await Lead.findOne({ phoneNumber: { $regex: last10 + "$" } });
       }
@@ -341,12 +342,12 @@ export async function POST(request: NextRequest) {
     }
 
     const elapsed = Date.now() - startTime;
-    console.log(`✨ [PostCallWebhook] Finished processing in ${elapsed}ms`);
+    console.log(`⏱️ [PostCallWebhook] Finished processing in ${elapsed}ms`);
     console.log("--------------------------------------------------");
 
     return NextResponse.json({
       success: true,
-      lead_id: lead?._id || null,
+      lead_id: lead ? lead._id : null,
       conversation_id: convId,
     });
   } catch (error: any) {
