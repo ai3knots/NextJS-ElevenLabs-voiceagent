@@ -38,6 +38,51 @@ function verifyElevenLabsSignature(signatureHeader: string | null, rawBody: stri
   }
 }
 
+// Helper to deep search for keys in nested objects
+function findKeyDeep(obj: any, keys: string[]): any {
+  if (!obj || typeof obj !== "object") return null;
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") {
+      return obj[key];
+    }
+  }
+  for (const k in obj) {
+    if (obj[k] && typeof obj[k] === "object") {
+      const found = findKeyDeep(obj[k], keys);
+      if (found !== undefined && found !== null && found !== "") return found;
+    }
+  }
+  return null;
+}
+
+// Helper to find any valid phone number in an object
+function findPhoneNumberDeep(obj: any): string | null {
+  if (!obj) return null;
+  
+  // Check known phone keys first
+  const phoneKeys = [
+    "external_number",
+    "caller_id",
+    "callerId",
+    "phone_number",
+    "phoneNumber",
+    "from",
+    "from_number",
+    "to",
+    "to_number",
+    "confirmed_phone"
+  ];
+  
+  const val = findKeyDeep(obj, phoneKeys);
+  if (val) {
+    const str = typeof val === "object" ? (val.value || val.phone || "") : String(val);
+    const cleaned = String(str).replace(/\D/g, "");
+    if (cleaned.length >= 10) return String(str).trim();
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   console.log("--------------------------------------------------");
@@ -62,32 +107,43 @@ export async function POST(request: NextRequest) {
     await connectDB();
     console.log("💾 [PostCallWebhook] Connected to MongoDB");
 
-    // 1. Identify Conversation ID
-    const convId = rawBody.conversation_id || rawBody.id || rawBody.metadata?.conversation_id;
-    console.log(`🆔 [PostCallWebhook] Conversation ID: ${convId || "Unknown"}`);
+    // 1. Unwrap event data according to ElevenLabs webhook documentation
+    const eventData = rawBody.data || rawBody;
 
-    // 2. Fetch full conversation details from ElevenLabs if not fully present in webhook
-    let details = rawBody;
-    if (convId && (!rawBody.analysis || !rawBody.transcript)) {
-      console.log(`🌐 [PostCallWebhook] Fetching additional conversation details from ElevenLabs API for ${convId}...`);
+    // Robust Conversation ID Extraction
+    const convId =
+      eventData.conversation_id ||
+      eventData.conversationId ||
+      eventData.id ||
+      rawBody.conversation_id ||
+      findKeyDeep(rawBody, ["conversation_id", "conversationId", "call_id", "callId", "id"]);
+    
+    console.log(`🆔 [PostCallWebhook] Extracted Conversation ID: ${convId || "Unknown"}`);
+
+    // 2. Fetch full conversation details from ElevenLabs API to guarantee complete telephony metadata
+    let details: any = { ...rawBody, ...eventData };
+    if (convId) {
+      console.log(`🌐 [PostCallWebhook] Fetching latest conversation details from ElevenLabs for: ${convId}...`);
       const fetched = await getConversationDetails(convId);
       if (fetched) {
-        details = { ...rawBody, ...fetched };
-        console.log("✅ [PostCallWebhook] Successfully fetched extra details from ElevenLabs");
+        details = { 
+          ...details, 
+          ...fetched, 
+          metadata: { ...(details.metadata || {}), ...(fetched.metadata || {}) },
+          analysis: { ...(details.analysis || {}), ...(fetched.analysis || {}) },
+          conversation_initiation_metadata: { 
+            ...(details.conversation_initiation_metadata || {}), 
+            ...(fetched.conversation_initiation_metadata || {}) 
+          }
+        };
+        console.log("✅ [PostCallWebhook] Successfully fetched extra details from ElevenLabs API");
+      } else {
+        console.warn("⚠️ [PostCallWebhook] Could not fetch details from ElevenLabs API.");
       }
     }
 
-    // 3. Extract Caller Phone Number
-    const rawPhone =
-      details.conversation_initiation_metadata?.external_number ||
-      details.metadata?.external_number ||
-      details.conversation_initiation_client_data?.dynamic_variables?.phone_number ||
-      details.metadata?.caller_id ||
-      details.caller_id ||
-      details.phone_number ||
-      details.analysis?.data_collection_results?.confirmed_phone?.value ||
-      details.analysis?.data_collection_results?.confirmed_phone;
-
+    // 3. Robust Caller Phone Number Extraction
+    const rawPhone = findPhoneNumberDeep(details) || findPhoneNumberDeep(rawBody);
     let phoneNumber = String(rawPhone || "").trim();
     const numericPhone = phoneNumber.replace(/\D/g, "");
     const last10 = numericPhone.slice(-10);
@@ -95,7 +151,13 @@ export async function POST(request: NextRequest) {
     console.log(`📞 [PostCallWebhook] Caller Phone - Raw: [${rawPhone}], Normalized: [${phoneNumber}], Last10: [${last10}]`);
 
     // 4. Extract Structured Analysis / Evaluation Fields
-    const dataCollection = details.analysis?.data_collection_results || {};
+    const dataCollection =
+      details.analysis?.data_collection_results ||
+      details.data?.analysis?.data_collection_results ||
+      details.data_collection_results ||
+      findKeyDeep(details, ["data_collection_results", "analysis"]) ||
+      {};
+
     const extractVal = (field: any) => {
       if (!field) return null;
       if (typeof field === "string") return field.trim();
@@ -103,22 +165,22 @@ export async function POST(request: NextRequest) {
       return null;
     };
 
-    let outcome = extractVal(dataCollection.call_outcome);
-    const lastCompletedStage = extractVal(dataCollection.last_completed_stage);
-    const oneLineSummary = extractVal(dataCollection.one_line_summary);
-    const authorName = extractVal(dataCollection.author_name) || extractVal(dataCollection.caller_name);
-    const bookTopic = extractVal(dataCollection.book_topic_or_title) || extractVal(dataCollection.book_topic);
-    const writingStage = extractVal(dataCollection.writing_stage);
-    const servicesDiscussed = extractVal(dataCollection.services_discussed);
-    const followUpContext = extractVal(dataCollection.follow_up_context);
-    const confirmedEmail = extractVal(dataCollection.confirmed_email);
-    const preferredCallbackTime = extractVal(dataCollection.preferred_callback_time);
-    const callbackReq = extractVal(dataCollection.callback_requested);
+    let outcome = extractVal(dataCollection.call_outcome) || extractVal(findKeyDeep(details, ["call_outcome"]));
+    const lastCompletedStage = extractVal(dataCollection.last_completed_stage) || extractVal(findKeyDeep(details, ["last_completed_stage"]));
+    const oneLineSummary = extractVal(dataCollection.one_line_summary) || extractVal(findKeyDeep(details, ["one_line_summary"]));
+    const authorName = extractVal(dataCollection.author_name) || extractVal(dataCollection.caller_name) || extractVal(findKeyDeep(details, ["author_name", "caller_name"]));
+    const bookTopic = extractVal(dataCollection.book_topic_or_title) || extractVal(dataCollection.book_topic) || extractVal(findKeyDeep(details, ["book_topic_or_title", "book_topic"]));
+    const writingStage = extractVal(dataCollection.writing_stage) || extractVal(findKeyDeep(details, ["writing_stage"]));
+    const servicesDiscussed = extractVal(dataCollection.services_discussed) || extractVal(findKeyDeep(details, ["services_discussed"]));
+    const followUpContext = extractVal(dataCollection.follow_up_context) || extractVal(findKeyDeep(details, ["follow_up_context"]));
+    const confirmedEmail = extractVal(dataCollection.confirmed_email) || extractVal(findKeyDeep(details, ["confirmed_email"]));
+    const preferredCallbackTime = extractVal(dataCollection.preferred_callback_time) || extractVal(findKeyDeep(details, ["preferred_callback_time"]));
+    const callbackReq = extractVal(dataCollection.callback_requested) || extractVal(findKeyDeep(details, ["callback_requested"]));
     const followUpRequired = callbackReq === "true" || callbackReq === "yes" || !!preferredCallbackTime || !!followUpContext;
 
-    const status = (details.status || "completed").toLowerCase();
+    const status = (details.status || details.call_status || "completed").toLowerCase();
     const isFailed = ["failed", "canceled", "no_answer", "busy", "error"].includes(status);
-    const durationSecs = details.metadata?.call_duration_secs || details.call_duration_secs || 0;
+    const durationSecs = details.metadata?.call_duration_secs || details.call_duration_secs || details.duration_secs || 0;
     const finalStatus = isFailed ? "failed" : "completed";
 
     console.log(`📊 [PostCallWebhook] Extracted Evaluations:`, {
