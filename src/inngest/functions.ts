@@ -40,15 +40,33 @@ export const initiateOutboundCall = inngest.createFunction(
 
       await Lead.updateOne({ _id: lead._id }, { callStatus: "initiating" });
 
+      // Fetch the last 5 call logs for this lead to get extended context
+      const callLogs = await CallLog.find({ leadId: lead._id })
+        .sort({ createdAt: -1 })
+        .limit(5);
+
+      let recentCallsContext = "";
+      if (callLogs.length > 0) {
+        recentCallsContext = callLogs.map((log, index) => {
+          const date = new Date(log.createdAt).toLocaleDateString();
+          return `Call ${index + 1} (${date}): ${log.callSummary || "No summary available. Status: " + log.callStatus}`;
+        }).join(" | ");
+      } else {
+        recentCallsContext = "No past calls found.";
+      }
+
       const dynamicVariables = {
-        first_name: lead.firstName || "there",
+        found: "true",
+        author_name: lead.firstName || "Unknown",
         company: lead.company || "",
-        context: lead.context || "",
-        book_topic: lead.bookTopic || "",
+        book_topic: lead.bookTopic || "Unknown",
+        writing_stage: lead.writingStage || "Unknown",
         last_completed_stage: lead.lastCompletedStage || "no_interaction",
         last_outcome: lead.lastCallOutcome || "no_interaction",
-        last_summary: lead.lastCallSummary || lead.callSummary || "no summary",
-        previous_summary: lead.lastCallSummary || lead.callSummary || "no summary", // Keeping for backwards compatibility
+        last_summary: lead.lastCallSummary || lead.callSummary || "No previous summary available.",
+        context: lead.context || "",
+        recent_calls_context: recentCallsContext,
+        call_direction: "outbound"
       };
 
       const response = await triggerOutboundCall(lead.phoneNumber, dynamicVariables, agentId, agentPhoneNumberId);

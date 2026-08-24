@@ -86,18 +86,37 @@ export async function createBatchCallAction(payload: {
 
     createdOrUpdatedLeadIds.push(lead._id.toString());
 
+    // Fetch the last 5 call logs for this lead to get extended context
+    const callLogs = await CallLog.find({ leadId: lead._id })
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    let recentCallsContext = "";
+    if (callLogs.length > 0) {
+      recentCallsContext = callLogs.map((log, index) => {
+        const date = new Date(log.createdAt).toLocaleDateString();
+        return `Call ${index + 1} (${date}): ${log.callSummary || "No summary available. Status: " + log.callStatus}`;
+      }).join(" | ");
+    } else {
+      recentCallsContext = "No past calls found.";
+    }
+
     // Prepare ElevenLabs recipient payload with dynamic context
     formattedRecipients.push({
       phone_number: cleanPhone,
       conversation_initiation_client_data: {
         dynamic_variables: {
-          first_name: fName,
-          context: lead.context || ctx || "",
-          book_topic: lead.bookTopic || r.bookTopic || "",
+          found: "true",
+          author_name: fName,
+          company: lead.company || r.company || "",
+          book_topic: lead.bookTopic || r.bookTopic || "Unknown",
+          writing_stage: lead.writingStage || r.writingStage || "Unknown",
           last_completed_stage: lead.lastCompletedStage || "no_interaction",
           last_outcome: lead.lastCallOutcome || "no_interaction",
-          last_summary: lead.lastCallSummary || lead.callSummary || "no summary",
-          previous_summary: lead.lastCallSummary || lead.callSummary || "no summary", // Keeping for backwards compatibility
+          last_summary: lead.lastCallSummary || lead.callSummary || "No previous summary available.",
+          context: lead.context || ctx || "",
+          recent_calls_context: recentCallsContext,
+          call_direction: "outbound"
         },
       },
     });
