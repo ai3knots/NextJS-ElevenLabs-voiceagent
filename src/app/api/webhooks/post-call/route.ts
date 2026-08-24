@@ -143,7 +143,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Robust Caller Phone Number Extraction
-    const rawPhone = findPhoneNumberDeep(details) || findPhoneNumberDeep(rawBody);
+    const rawPhone =
+      details.phone_call?.external_number ||
+      details.phone_call?.from ||
+      details.phone_call?.to ||
+      findPhoneNumberDeep(details) ||
+      findPhoneNumberDeep(rawBody);
+      
     let phoneNumber = String(rawPhone || "").trim();
     const numericPhone = phoneNumber.replace(/\D/g, "");
     const last10 = numericPhone.slice(-10);
@@ -195,11 +201,11 @@ export async function POST(request: NextRequest) {
       finalStatus
     });
 
-    // Summary Text Generation - Prioritize detailed transcript summary over 1-liner
+    // Summary Text Generation - Strictly use ElevenLabs rich Overview Transcript Summary
     const detailedSummary =
       details.analysis?.transcript_summary ||
-      details.analysis?.summary ||
       details.transcript_summary ||
+      details.analysis?.summary ||
       details.summary ||
       null;
 
