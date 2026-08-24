@@ -48,6 +48,8 @@ export async function POST(request: Request) {
       context: lead.context || ""
     };
 
+    console.log(`Webhook Response: ${JSON.stringify(dynamicVariables)}`);
+
     return NextResponse.json({ dynamic_variables: dynamicVariables });
 
   } catch (error: any) {
