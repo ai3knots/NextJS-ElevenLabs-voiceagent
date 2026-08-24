@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
     if (!phone_number) {
       // If no caller_id is provided, return empty dynamic variables
-      return NextResponse.json({ dynamic_variables: { found: "false" } });
+      return NextResponse.json({ dynamic_variables: { found: "false", call_direction: "inbound" } });
     }
 
     // Connect to the database
@@ -32,7 +32,8 @@ export async function POST(request: Request) {
       // Return false in dynamic variables for a brand new caller
       return NextResponse.json({
         dynamic_variables: {
-          found: "false"
+          found: "false",
+          call_direction: "inbound"
         }
       });
     }
