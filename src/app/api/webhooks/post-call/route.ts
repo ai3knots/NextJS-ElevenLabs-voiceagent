@@ -1,26 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import connectDB from "@/lib/mongodb";
 import Lead from "@/models/Lead";
 import CallLog from "@/models/CallLog";
 import { getConversationDetails } from "@/lib/elevenlabs";
 
-export async function POST(request: NextRequest) {
+function verifyElevenLabsSignature(signatureHeader: string | null, rawBody: string, secret?: string): boolean {
+  if (!secret || !signatureHeader) return true; // Allow manual testing or unconfigured secret
+
   try {
-    const rawBody = await request.json();
-    console.log("=== ElevenLabs Post-Call Webhook Received ===");
-    console.log("Payload:", JSON.stringify(rawBody, null, 2));
+    const parts = signatureHeader.split(",");
+    let timestamp = "";
+    let hash = "";
+
+    for (const part of parts) {
+      const [k, v] = part.trim().split("=");
+      if (k === "t") timestamp = v;
+      if (k === "v0" || k === "v1" || k === "v") hash = v;
+    }
+
+    if (timestamp && hash) {
+      const expected = crypto
+        .createHmac("sha256", secret)
+        .update(`${timestamp}.${rawBody}`)
+        .digest("hex");
+      return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(expected));
+    }
+
+    const directExpected = crypto
+      .createHmac("sha256", secret)
+      .update(rawBody)
+      .digest("hex");
+    return crypto.timingSafeEqual(Buffer.from(signatureHeader), Buffer.from(directExpected));
+  } catch (err) {
+    console.error("Signature verification error:", err);
+    return false;
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  console.log("--------------------------------------------------");
+  console.log("🔔 [PostCallWebhook] Incoming ElevenLabs Webhook Request");
+
+  try {
+    const rawText = await request.text();
+    const signature = request.headers.get("elevenlabs-signature") || request.headers.get("ElevenLabs-Signature");
+    const secret = process.env.ELEVENLABS_WEBHOOK_SECRET;
+
+    console.log(`🔑 [PostCallWebhook] Signature Header: ${signature ? "Present" : "Missing"}`);
+    console.log(`🔐 [PostCallWebhook] Secret Configured: ${secret ? "Yes" : "No"}`);
+
+    if (secret && signature && !verifyElevenLabsSignature(signature, rawText, secret)) {
+      console.warn("❌ [PostCallWebhook] Invalid ElevenLabs Webhook signature received.");
+      return NextResponse.json({ error: "Unauthorized: Invalid Signature" }, { status: 401 });
+    }
+
+    const rawBody = JSON.parse(rawText || "{}");
+    console.log("📦 [PostCallWebhook] Full Raw Payload:", JSON.stringify(rawBody, null, 2));
 
     await connectDB();
+    console.log("💾 [PostCallWebhook] Connected to MongoDB");
 
     // 1. Identify Conversation ID
     const convId = rawBody.conversation_id || rawBody.id || rawBody.metadata?.conversation_id;
+    console.log(`🆔 [PostCallWebhook] Conversation ID: ${convId || "Unknown"}`);
 
     // 2. Fetch full conversation details from ElevenLabs if not fully present in webhook
     let details = rawBody;
     if (convId && (!rawBody.analysis || !rawBody.transcript)) {
+      console.log(`🌐 [PostCallWebhook] Fetching additional conversation details from ElevenLabs API for ${convId}...`);
       const fetched = await getConversationDetails(convId);
       if (fetched) {
         details = { ...rawBody, ...fetched };
+        console.log("✅ [PostCallWebhook] Successfully fetched extra details from ElevenLabs");
       }
     }
 
@@ -39,7 +92,7 @@ export async function POST(request: NextRequest) {
     const numericPhone = phoneNumber.replace(/\D/g, "");
     const last10 = numericPhone.slice(-10);
 
-    console.log(`Caller identification - Raw: [${rawPhone}], Cleaned: [${numericPhone}], Last10: [${last10}]`);
+    console.log(`📞 [PostCallWebhook] Caller Phone - Raw: [${rawPhone}], Normalized: [${phoneNumber}], Last10: [${last10}]`);
 
     // 4. Extract Structured Analysis / Evaluation Fields
     const dataCollection = details.analysis?.data_collection_results || {};
@@ -67,6 +120,18 @@ export async function POST(request: NextRequest) {
     const isFailed = ["failed", "canceled", "no_answer", "busy", "error"].includes(status);
     const durationSecs = details.metadata?.call_duration_secs || details.call_duration_secs || 0;
     const finalStatus = isFailed ? "failed" : "completed";
+
+    console.log(`📊 [PostCallWebhook] Extracted Evaluations:`, {
+      authorName,
+      outcome,
+      lastCompletedStage,
+      oneLineSummary,
+      bookTopic,
+      writingStage,
+      confirmedEmail,
+      durationSecs,
+      finalStatus
+    });
 
     // Summary Text Generation
     let summaryText =
@@ -100,7 +165,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!lead && last10) {
-      console.log(`Creating new Inbound Lead for phone number: ${phoneNumber || last10}`);
+      console.log(`👤 [PostCallWebhook] Creating NEW Inbound Lead for phone number: ${phoneNumber || last10}`);
       lead = await Lead.create({
         firstName: authorName || "Inbound Caller",
         lastName: "",
@@ -123,8 +188,9 @@ export async function POST(request: NextRequest) {
         preferredCallbackTime: preferredCallbackTime || undefined,
         followUpStatus: followUpRequired ? "callback_requested" : "none",
       });
+      console.log(`✅ [PostCallWebhook] Created Lead ID: ${lead._id}`);
     } else if (lead) {
-      console.log(`Updating existing Lead: ${lead.firstName} (${lead._id})`);
+      console.log(`🔄 [PostCallWebhook] Updating EXISTING Lead: ${lead.firstName} (${lead._id})`);
       const updates: any = {
         callStatus: finalStatus,
         callSummary: summaryText,
@@ -152,11 +218,12 @@ export async function POST(request: NextRequest) {
       }
 
       await Lead.updateOne({ _id: lead._id }, { $set: updates });
+      console.log(`✅ [PostCallWebhook] Successfully updated Lead ID: ${lead._id}`);
     }
 
     // 6. Create CallLog Record
     if (lead) {
-      await CallLog.create({
+      const newLog = await CallLog.create({
         leadId: lead._id,
         callStatus: finalStatus,
         callDurationSecs: durationSecs,
@@ -175,10 +242,14 @@ export async function POST(request: NextRequest) {
         callAnalysis: details.analysis || undefined,
         rawWebhookPayload: details,
       });
-      console.log(`Saved CallLog for leadId: ${lead._id}`);
+      console.log(`📋 [PostCallWebhook] Saved CallLog ID: ${newLog._id} for Lead: ${lead._id}`);
     } else {
-      console.warn("Could not associate CallLog because no phone number was found in payload.");
+      console.warn("⚠️ [PostCallWebhook] Could not associate CallLog because no phone number was found in payload.");
     }
+
+    const elapsed = Date.now() - startTime;
+    console.log(`✨ [PostCallWebhook] Finished processing in ${elapsed}ms`);
+    console.log("--------------------------------------------------");
 
     return NextResponse.json({
       success: true,
@@ -186,7 +257,7 @@ export async function POST(request: NextRequest) {
       conversation_id: convId,
     });
   } catch (error: any) {
-    console.error("Error in post-call webhook:", error);
+    console.error("💥 [PostCallWebhook] Error processing webhook:", error);
     return NextResponse.json(
       { error: "Internal Server Error", details: error.message },
       { status: 500 }
