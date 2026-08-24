@@ -228,95 +228,116 @@ export async function POST(request: NextRequest) {
       outcome = finalStatus;
     }
 
-    console.log(`📝 [PostCallWebhook] Final Summary Text: "${summaryText}"`);
+    // 5. Check if this is a Web Chat
+    const dynamicVariables = 
+      details.conversation_initiation_metadata?.conversation_initiation_client_data?.dynamic_variables ||
+      details.metadata?.dynamic_variables ||
+      findKeyDeep(details, ["dynamic_variables"]) ||
+      {};
+      
+    const isChat = dynamicVariables.is_chat === "true" || dynamicVariables.is_chat === true;
 
-    // 5. Look up Lead or Create New Lead
-    let lead = null;
-    if (last10) {
-      lead = await Lead.findOne({ phoneNumber: { $regex: last10 + "$" } });
-    }
-
-    if (!lead && last10) {
-      console.log(`👤 [PostCallWebhook] Creating NEW Inbound Lead for phone number: ${phoneNumber || last10}`);
-      lead = await Lead.create({
-        firstName: authorName || "Inbound Caller",
-        lastName: "",
-        phoneNumber: phoneNumber.startsWith("+") ? phoneNumber : `+1${last10}`,
-        email: confirmedEmail || undefined,
-        bookTopic: bookTopic || undefined,
-        writingStage: writingStage || undefined,
-        callType: "manual",
-        source: "inbound",
-        status: "new",
-        callStatus: finalStatus,
+    // 6. Handle Chat vs Voice Call
+    if (isChat) {
+      console.log(`💬 [PostCallWebhook] Detected Web Chat. Saving standalone ChatLog.`);
+      const ChatLog = (await import("@/models/ChatLog")).default;
+      const newChat = await ChatLog.create({
         elevenlabsConversationId: convId,
-        callSummary: summaryText,
-        lastCallOutcome: outcome,
-        lastCallSummary: summaryText,
-        lastConversationId: convId,
-        lastCompletedStage: lastCompletedStage || "no_interaction",
-        context: followUpContext || summaryText || undefined,
-        followUpNotes: followUpContext || undefined,
-        preferredCallbackTime: preferredCallbackTime || undefined,
-        followUpStatus: followUpRequired ? "callback_requested" : "none",
-      });
-      console.log(`✅ [PostCallWebhook] Created Lead ID: ${lead._id}`);
-    } else if (lead) {
-      console.log(`🔄 [PostCallWebhook] Updating EXISTING Lead: ${lead.firstName} (${lead._id})`);
-      const updates: any = {
-        callStatus: finalStatus,
-        callSummary: summaryText,
-        lastCallOutcome: outcome,
-        lastCallSummary: summaryText,
-        lastConversationId: convId,
-        lastCompletedStage: lastCompletedStage || lead.lastCompletedStage || "no_interaction",
-      };
-
-      if (authorName && lead.firstName === "Inbound Caller") {
-        updates.firstName = authorName;
-      }
-      if (confirmedEmail && !lead.email) updates.email = confirmedEmail;
-      if (bookTopic && !lead.bookTopic) updates.bookTopic = bookTopic;
-      if (writingStage && !lead.writingStage) updates.writingStage = writingStage;
-      if (followUpContext) {
-        updates.context = followUpContext;
-        updates.followUpNotes = followUpContext;
-      } else if (summaryText && !lead.context) {
-        updates.context = summaryText;
-      }
-      if (preferredCallbackTime) {
-        updates.preferredCallbackTime = preferredCallbackTime;
-        updates.followUpStatus = "callback_requested";
-      }
-
-      await Lead.updateOne({ _id: lead._id }, { $set: updates });
-      console.log(`✅ [PostCallWebhook] Successfully updated Lead ID: ${lead._id}`);
-    }
-
-    // 6. Create CallLog Record
-    if (lead) {
-      const newLog = await CallLog.create({
-        leadId: lead._id,
-        callStatus: finalStatus,
-        callDurationSecs: durationSecs,
-        elevenlabsConversationId: convId,
-        callSummary: oneLineSummary || summaryText,
-        callOutcome: outcome,
-        lastCompletedStage: lastCompletedStage || "no_interaction",
+        chatStatus: finalStatus,
+        chatSummary: summaryText,
+        chatOutcome: outcome,
         followUpRequired,
-        preferredCallbackTime: preferredCallbackTime || undefined,
-        bookTopic: bookTopic || (lead ? lead.bookTopic : undefined) || undefined,
-        writingStage: writingStage || (lead ? lead.writingStage : undefined) || undefined,
-        servicesDiscussed: servicesDiscussed || undefined,
-        followUpContext: followUpContext || undefined,
-        confirmedEmail: confirmedEmail || (lead ? lead.email : undefined) || undefined,
-        confirmedPhone: phoneNumber || (lead ? lead.phoneNumber : undefined) || undefined,
-        callAnalysis: details.analysis || undefined,
         rawWebhookPayload: details,
       });
-      console.log(`📋 [PostCallWebhook] Saved CallLog ID: ${newLog._id} for Lead: ${lead._id}`);
+      console.log(`💬 [PostCallWebhook] Saved ChatLog ID: ${newChat._id}`);
     } else {
-      console.warn("⚠️ [PostCallWebhook] Could not associate CallLog because no phone number was found in payload.");
+      let lead = null;
+      if (last10) {
+        lead = await Lead.findOne({ phoneNumber: { $regex: last10 + "$" } });
+      }
+
+      if (!lead && last10) {
+        console.log(`👤 [PostCallWebhook] Creating NEW Inbound Lead for phone number: ${phoneNumber || last10}`);
+        lead = await Lead.create({
+          firstName: authorName || "Inbound Caller",
+          lastName: "",
+          phoneNumber: phoneNumber.startsWith("+") ? phoneNumber : `+1${last10}`,
+          email: confirmedEmail || undefined,
+          bookTopic: bookTopic || undefined,
+          writingStage: writingStage || undefined,
+          callType: "manual",
+          source: "inbound",
+          status: "new",
+          callStatus: finalStatus,
+          elevenlabsConversationId: convId,
+          callSummary: summaryText,
+          lastCallOutcome: outcome,
+          lastCallSummary: summaryText,
+          lastConversationId: convId,
+          lastCompletedStage: lastCompletedStage || "no_interaction",
+          context: followUpContext || summaryText || undefined,
+          followUpNotes: followUpContext || undefined,
+          preferredCallbackTime: preferredCallbackTime || undefined,
+          followUpStatus: followUpRequired ? "callback_requested" : "none",
+        });
+        console.log(`✅ [PostCallWebhook] Created Lead ID: ${lead._id}`);
+      } else if (lead) {
+        console.log(`🔄 [PostCallWebhook] Updating EXISTING Lead: ${lead.firstName} (${lead._id})`);
+        const updates: any = {
+          callStatus: finalStatus,
+          callSummary: summaryText,
+          lastCallOutcome: outcome,
+          lastCallSummary: summaryText,
+          lastConversationId: convId,
+          lastCompletedStage: lastCompletedStage || lead.lastCompletedStage || "no_interaction",
+        };
+
+        if (authorName && lead.firstName === "Inbound Caller") {
+          updates.firstName = authorName;
+        }
+        if (confirmedEmail && !lead.email) updates.email = confirmedEmail;
+        if (bookTopic && !lead.bookTopic) updates.bookTopic = bookTopic;
+        if (writingStage && !lead.writingStage) updates.writingStage = writingStage;
+        if (followUpContext) {
+          updates.context = followUpContext;
+          updates.followUpNotes = followUpContext;
+        } else if (summaryText && !lead.context) {
+          updates.context = summaryText;
+        }
+        if (preferredCallbackTime) {
+          updates.preferredCallbackTime = preferredCallbackTime;
+          updates.followUpStatus = "callback_requested";
+        }
+
+        await Lead.updateOne({ _id: lead._id }, { $set: updates });
+        console.log(`✅ [PostCallWebhook] Successfully updated Lead ID: ${lead._id}`);
+      }
+
+      // 7. Create CallLog Record
+      if (lead) {
+        const newLog = await CallLog.create({
+          leadId: lead._id,
+          callStatus: finalStatus,
+          callDurationSecs: durationSecs,
+          elevenlabsConversationId: convId,
+          callSummary: oneLineSummary || summaryText,
+          callOutcome: outcome,
+          lastCompletedStage: lastCompletedStage || "no_interaction",
+          followUpRequired,
+          preferredCallbackTime: preferredCallbackTime || undefined,
+          bookTopic: bookTopic || (lead ? lead.bookTopic : undefined) || undefined,
+          writingStage: writingStage || (lead ? lead.writingStage : undefined) || undefined,
+          servicesDiscussed: servicesDiscussed || undefined,
+          followUpContext: followUpContext || undefined,
+          confirmedEmail: confirmedEmail || (lead ? lead.email : undefined) || undefined,
+          confirmedPhone: phoneNumber || (lead ? lead.phoneNumber : undefined) || undefined,
+          callAnalysis: details.analysis || undefined,
+          rawWebhookPayload: details,
+        });
+        console.log(`📋 [PostCallWebhook] Saved CallLog ID: ${newLog._id} for Lead: ${lead._id}`);
+      } else {
+        console.warn("⚠️ [PostCallWebhook] Could not associate CallLog because no lead was found or created.");
+      }
     }
 
     const elapsed = Date.now() - startTime;

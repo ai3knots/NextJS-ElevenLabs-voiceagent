@@ -9,8 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@elevenlabs/react": "^1.13.0",
     "@react-pdf/renderer": "^4.6.1",
     "axios": "^1.19.0",
+    "framer-motion": "^13.1.1",
     "inngest": "^4.15.0",
     "lucide-react": "^1.28.0",
     "mongoose": "^9.9.1",
