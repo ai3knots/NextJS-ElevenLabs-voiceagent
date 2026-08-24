@@ -18,11 +18,14 @@ export async function POST(request: Request) {
     // Connect to the database
     await connectDB();
 
-    // Clean the phone number
-    const cleanPhone = phone_number.trim();
+    // Clean the phone number (remove all non-digits)
+    const numericPhone = phone_number.replace(/\D/g, '');
+    const last10 = numericPhone.slice(-10);
+    
+    console.log(`Webhook lookup: Original [${phone_number}], Last10 [${last10}]`);
 
-    // Look up the lead in the database
-    const lead = await Lead.findOne({ phoneNumber: cleanPhone });
+    // Look up the lead in the database using a regex that matches the last 10 digits
+    const lead = await Lead.findOne({ phoneNumber: { $regex: last10 + '$' } });
 
     if (!lead) {
       // Return false in dynamic variables for a brand new caller
