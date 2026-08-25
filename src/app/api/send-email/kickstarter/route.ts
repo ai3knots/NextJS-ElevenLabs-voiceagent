@@ -12,7 +12,7 @@ import {
 /**
  * Generates a luxury, high-converting HTML email template for the Kickstarter Publishing plan.
  */
-function generateExecutiveProposalHtml(clientName: string, refId?: string): string {
+function generateExecutiveProposalHtml(clientName: string, refId?: string, price: string = '$699'): string {
   const year = new Date().getFullYear();
   const name = clientName && clientName.trim() ? clientName.trim() : 'Author';
   const refCode = refId || ('MPH-' + Date.now().toString(36).toUpperCase());
@@ -45,7 +45,7 @@ function generateExecutiveProposalHtml(clientName: string, refId?: string): stri
   const content = `
     ${renderGreeting(name)}
     ${renderProcessSection(steps)}
-    ${renderPlanSection('Kickstarter Publishing Plan', '$699', kickstarterFeatures, 'kickstarter')}
+    ${renderPlanSection('Kickstarter Publishing Plan', price, kickstarterFeatures, 'kickstarter')}
     ${renderAssurancesSection()}
     ${renderCallToAction()}
   `;
@@ -56,7 +56,7 @@ function generateExecutiveProposalHtml(clientName: string, refId?: string): stri
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { to, from, subject, message, name } = body;
+    const { to, from, subject, message, name, price } = body;
 
     if (!to) {
       return NextResponse.json(
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     const clientName = name || (typeof message === 'string' && message.match(/Dear\s+([^,]+)/i)?.[1]) || '';
     const refId = 'MPH-' + Date.now().toString(36).toUpperCase();
 
-    const htmlTemplate = generateExecutiveProposalHtml(clientName, refId);
+    const htmlTemplate = generateExecutiveProposalHtml(clientName, refId, price);
 
     const mailOptions = {
       from: `"Marketing & Publishing House" <${smtpUser}>`,
