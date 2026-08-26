@@ -118,12 +118,43 @@ function formatDuration(seconds: number | undefined) {
   return `${m}m ${s}s`;
 }
 
+const OUTCOME_COLORS: Record<string, string> = {
+  scheduled_with_senior: "#6366f1", // Indigo
+  plans_emailed: "#0ea5e9", // Sky
+  contract_sent: "#10b981", // Emerald
+  spoke_but_declined: "#a855f7", // Purple
+  not_interested_hangup: "#64748b", // Slate
+  not_interestd_hangup: "#64748b", // Slate (typo fallback)
+  busy_hangup: "#f59e0b", // Amber
+  ai_objection_hangup: "#d946ef", // Fuchsia
+  immediate_hangup: "#ef4444", // Crimson
+  speak_no_word: "#94a3b8", // Slate Light
+  voicemail: "#ec4899", // Pink
+  callback_requested: "#14b8a6", // Teal
+  no_answer: "#3b82f6", // Blue
+  wrong_number_hangup: "#f43f5e", // Rose
+  wrong_number: "#f43f5e", // Rose
+  busy: "#f59e0b", // Amber
+  hung_up: "#ef4444", // Crimson
+  call_ended_quickly: "#f97316", // Orange
+  no_info_provided: "#94a3b8", // Slate
+  not_evaluated: "#cbd5e1", // Light Slate
+  failed: "#dc2626", // Red
+  other: "#06b6d4", // Cyan
+  unprocessed: "#cbd5e1",
+};
+
 function getOutcomeColor(outcome: string) {
   const lower = String(outcome).toLowerCase();
-  if (lower.includes('scheduled') || lower.includes('contract') || lower.includes('converted')) return '#10b981'; // Emerald
-  if (lower.includes('voicemail') || lower.includes('emailed') || lower.includes('callback')) return '#3b82f6'; // Blue
-  if (lower.includes('hangup') || lower.includes('failed') || lower.includes('busy') || lower.includes('wrong')) return '#ef4444'; // Red
-  return '#8b5cf6'; // Violet for others
+  if (OUTCOME_COLORS[lower]) return OUTCOME_COLORS[lower];
+  
+  // Deterministic fallback color based on string hash for unknown tags
+  const fallbackColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#06b6d4'];
+  let hash = 0;
+  for (let i = 0; i < lower.length; i++) {
+    hash = lower.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return fallbackColors[Math.abs(hash) % fallbackColors.length];
 }
 
 export const BatchReportDocument = ({
@@ -185,6 +216,18 @@ export const BatchReportDocument = ({
     <Document>
       {/* Page 1: High-Level Batch Summary */}
       <Page size="A4" style={styles.page}>
+        
+        {/* 3Knot Logo Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+          <View style={{ width: 38, height: 38, borderRadius: 8, backgroundColor: '#6366f1', justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 18 }}>3K</Text>
+          </View>
+          <View style={{ marginLeft: 10 }}>
+            <Text style={{ fontWeight: 'bold', color: '#0f172a', fontSize: 16 }}>3knot</Text>
+            <Text style={{ color: '#0ea5e9', fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Digital Voice</Text>
+          </View>
+        </View>
+
         <Text style={styles.title}>{batchName} - Analytics Report</Text>
         <Text style={styles.subtitle}>Batch ID: {batchId} | Generated on: {new Date().toLocaleDateString()}</Text>
 
