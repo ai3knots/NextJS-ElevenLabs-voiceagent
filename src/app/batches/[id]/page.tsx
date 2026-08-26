@@ -6,6 +6,7 @@ import Link from "next/link";
 import BatchAnalyticsSection from "@/components/BatchAnalyticsSection";
 import ReanalyzeBatchButton from "@/components/ReanalyzeBatchButton";
 import { OutcomeItem } from "@/components/OutcomeCircleChart";
+import ExportPdfButton from "@/components/pdf/ExportPdfButton";
 import { Target, TrendingUp, Clock, PhoneCall, CheckCircle2, MessageSquare, User, ArrowLeft, Layers } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -295,6 +296,17 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
             <span className="text-xs uppercase text-slate-400 font-bold block">Created Date</span>
             <span className="font-semibold text-slate-800">{createdAt}</span>
           </div>
+          <ExportPdfButton 
+            batchName={batchName}
+            batchId={id}
+            totalCalls={totalCalls}
+            answerRate={answerRate}
+            conversionRate={conversionRate}
+            avgDurationSecs={avgDurationSecs}
+            createdAt={createdAt}
+            outcomesCount={outcomesCount}
+            recipients={recipients}
+          />
           <ReanalyzeBatchButton batchId={id} totalCount={rawRecipients.length} />
         </div>
       </div>
