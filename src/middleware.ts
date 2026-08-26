@@ -15,6 +15,7 @@ const PUBLIC_PREFIXES = [
   '/api/chats/save',
   '/api/inngest',
   '/api/send-email',
+  '/api/general-email',
   '/api/validate-card',
   '/api/contracts',
   '/api/chat', // Allow public access to chat API
