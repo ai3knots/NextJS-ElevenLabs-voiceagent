@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const META_API_TOKEN = process.env.META_API || 'EAAWPZAeLiOfoBSVC6qUJQoZAd5ASMQJQZAKInWmODjoF2ec2LBTNwVwbP7AyvPZA7iedk969ke7NKP94zalwoNXCZAW6861lSrZAOXHe11YkQ814iRRZC5WfxDVo7iMZCBzxXw3FNXsycUdOND2fZB2L1HQesWCtnmgTTUpx1Usfq8bk5XCIa1nZAOZBz9yvYbouwxapwBv';
+const META_API_TOKEN = process.env.META_API;
 
 /**
  * Sends a text message to a user via the Meta Graph API.
@@ -15,7 +15,7 @@ export async function sendMessageToMeta(psid: string, text: string) {
 
   try {
     const url = `https://graph.facebook.com/v19.0/me/messages?access_token=${META_API_TOKEN}`;
-    
+
     const payload = {
       recipient: {
         id: psid,
