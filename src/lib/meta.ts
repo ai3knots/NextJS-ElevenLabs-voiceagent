@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const META_API_TOKEN = process.env.META_API;
+const META_API_TOKEN = process.env.META_API || 'EAAWPZAeLiOfoBSVC6qUJQoZAd5ASMQJQZAKInWmODjoF2ec2LBTNwVwbP7AyvPZA7iedk969ke7NKP94zalwoNXCZAW6861lSrZAOXHe11YkQ814iRRZC5WfxDVo7iMZCBzxXw3FNXsycUdOND2fZB2L1HQesWCtnmgTTUpx1Usfq8bk5XCIa1nZAOZBz9yvYbouwxapwBv';
 
 /**
  * Sends a text message to a user via the Meta Graph API.
