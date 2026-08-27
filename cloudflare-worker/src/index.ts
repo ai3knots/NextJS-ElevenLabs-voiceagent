@@ -3,17 +3,8 @@ export interface Env {
   META_API: string;
   ELEVENLABS_AGENT_ID: string;
   CRM_SYNC_URL?: string;
+  CHAT_SESSION: DurableObjectNamespace;
 }
-
-interface ActiveSession {
-  ws: WebSocket;
-  lastActive: number;
-  timer: any;
-  transcript: Array<{ role: 'user' | 'agent'; content: string }>;
-}
-
-// In-Memory Global Session Map per Messenger User (senderPsid)
-const activeSessions = new Map<string, ActiveSession>();
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -47,9 +38,21 @@ export default {
             const messageText = webhookEvent.message?.text;
 
             if (senderPsid && messageText) {
-              console.log(`💬 [Cloudflare] Received from PSID ${senderPsid}: ${messageText}`);
-              // Process ElevenLabs session asynchronously in background
-              ctx.waitUntil(handleMessengerUserMessage(senderPsid, messageText, env));
+              console.log(`💬 [Cloudflare Worker] Routing message for PSID ${senderPsid}: "${messageText}"`);
+
+              // Route directly to user's dedicated Stateful Durable Object
+              const id = env.CHAT_SESSION.idFromName(senderPsid);
+              const stub = env.CHAT_SESSION.get(id);
+
+              ctx.waitUntil(
+                stub.fetch(
+                  new Request('https://chat-session/message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ senderPsid, text: messageText }),
+                  })
+                )
+              );
             }
           }
           return new Response('EVENT_RECEIVED', { status: 200 });
@@ -57,153 +60,147 @@ export default {
 
         return new Response('Not Found', { status: 404 });
       } catch (err: any) {
-        console.error('Error handling POST:', err);
+        console.error('Error in Worker POST:', err);
         return new Response(err.message, { status: 500 });
       }
     }
 
-    return new Response('Messenger-ElevenLabs-Worker is running!', { status: 200 });
+    return new Response('Messenger-ElevenLabs Durable Worker is running!', { status: 200 });
   },
 };
 
 /**
- * Handles incoming Messenger message, reusing open ElevenLabs WebSocket connection
+ * Stateful Durable Object that preserves the Live WebSocket session to ElevenLabs per user
  */
-async function handleMessengerUserMessage(senderPsid: string, text: string, env: Env) {
-  const agentId = env.ELEVENLABS_AGENT_ID || 'agent_5601m0tgt63qe8tt5q9qcnfqf5wa';
-  let session = activeSessions.get(senderPsid);
+export class ChatSession implements DurableObject {
+  state: DurableObjectState;
+  env: Env;
+  ws: WebSocket | null = null;
+  transcript: Array<{ role: 'user' | 'agent'; content: string }> = [];
+  flushTimer: any = null;
+  responseBuffer: string = '';
+  inactivityTimer: any = null;
 
-  // If no active session or WebSocket disconnected, create a new persistent connection
-  if (!session || session.ws.readyState !== WebSocket.OPEN) {
-    session = await createElevenLabsSession(senderPsid, agentId, env);
-    activeSessions.set(senderPsid, session);
+  constructor(state: DurableObjectState, env: Env) {
+    this.state = state;
+    this.env = env;
   }
 
-  // Record user message in session transcript
-  session.transcript.push({ role: 'user', content: text });
-  session.lastActive = Date.now();
+  async fetch(request: Request): Promise<Response> {
+    const { senderPsid, text } = (await request.json()) as { senderPsid: string; text: string };
 
-  // Clear previous inactivity timeout
-  if (session.timer) clearTimeout(session.timer);
+    this.transcript.push({ role: 'user', content: text });
 
-  // Send user message over the EXISTING open WebSocket
-  session.ws.send(
-    JSON.stringify({
-      type: 'user_message',
-      text: text,
-    })
-  );
-
-  // Set 5-Minute Inactivity Auto-Close Timer
-  session.timer = setTimeout(async () => {
-    console.log(`⏰ Inactivity timeout reached (5 mins). Finalizing session for PSID: ${senderPsid}`);
-    if (session && session.ws.readyState === WebSocket.OPEN) {
-      session.ws.close();
+    // Connect to ElevenLabs if not already connected
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      await this.initElevenLabsSession(senderPsid);
     }
-    // Sync full conversation to CRM
-    if (env.CRM_SYNC_URL && session?.transcript.length) {
-      await syncToCrm(senderPsid, session.transcript, env.CRM_SYNC_URL);
+
+    // Send user message over the active, persistent WebSocket
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(
+        JSON.stringify({
+          type: 'user_message',
+          text: text,
+        })
+      );
     }
-    activeSessions.delete(senderPsid);
-  }, 5 * 60 * 1000);
-}
 
-/**
- * Creates and maintains a single persistent WebSocket session to ElevenLabs
- */
-function createElevenLabsSession(senderPsid: string, agentId: string, env: Env): Promise<ActiveSession> {
-  return new Promise((resolve) => {
-    const ws = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}`);
+    // Reset 5-minute inactivity auto-close timer
+    if (this.inactivityTimer) clearTimeout(this.inactivityTimer);
+    this.inactivityTimer = setTimeout(() => {
+      console.log(`⏰ [Durable Object] 5-min inactivity reached. Closing session for ${senderPsid}`);
+      this.closeSession(senderPsid);
+    }, 5 * 60 * 1000);
 
-    let responseBuffer = '';
-    let flushTimer: any = null;
-    const sessionObj: ActiveSession = {
-      ws,
-      lastActive: Date.now(),
-      timer: null,
-      transcript: [],
-    };
+    return new Response('PROCESSED', { status: 200 });
+  }
 
-    const flushResponseToMessenger = async () => {
-      const reply = responseBuffer.trim();
-      if (reply) {
-        sessionObj.transcript.push({ role: 'agent', content: reply });
-        await sendToMeta(senderPsid, reply, env.META_API);
-        responseBuffer = '';
-      }
-    };
+  initElevenLabsSession(senderPsid: string): Promise<void> {
+    return new Promise((resolve) => {
+      const agentId = this.env.ELEVENLABS_AGENT_ID || 'agent_5601m0tgt63qe8tt5q9qcnfqf5wa';
+      this.ws = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}`);
 
-    ws.addEventListener('open', () => {
-      console.log(`🟢 [ElevenLabs WS Connected] Single Live Session started for PSID: ${senderPsid}`);
-      resolve(sessionObj);
-    });
+      this.ws.addEventListener('open', () => {
+        console.log(`🟢 [Durable Object] Live ElevenLabs WebSocket OPEN for PSID: ${senderPsid}`);
+        resolve();
+      });
 
-    ws.addEventListener('message', async (event: any) => {
-      try {
-        const parsed = JSON.parse(event.data);
+      this.ws.addEventListener('message', async (event: any) => {
+        try {
+          const parsed = JSON.parse(event.data);
 
-        if (parsed.type === 'agent_response') {
-          const chunk = parsed.agent_response_event?.agent_response?.trim();
-          if (chunk) {
-            responseBuffer = responseBuffer ? `${responseBuffer}\n\n${chunk}` : chunk;
+          if (parsed.type === 'agent_response') {
+            const chunk = parsed.agent_response_event?.agent_response?.trim();
+            if (chunk) {
+              this.responseBuffer = this.responseBuffer ? `${this.responseBuffer}\n\n${chunk}` : chunk;
 
-            // Wait 1.5s after last chunk, then flush full message to Messenger
-            if (flushTimer) clearTimeout(flushTimer);
-            flushTimer = setTimeout(flushResponseToMessenger, 1500);
+              // Buffer and flush after 1.5s silence
+              if (this.flushTimer) clearTimeout(this.flushTimer);
+              this.flushTimer = setTimeout(async () => {
+                const reply = this.responseBuffer.trim();
+                if (reply) {
+                  this.transcript.push({ role: 'agent', content: reply });
+                  await this.sendToMeta(senderPsid, reply);
+                  this.responseBuffer = '';
+                }
+              }, 1500);
+            }
           }
+        } catch (e) {
+          console.error('Error parsing WS message:', e);
         }
-      } catch (e) {
-        console.error('Error parsing WS message from ElevenLabs:', e);
-      }
-    });
+      });
 
-    ws.addEventListener('close', () => {
-      console.log(`🔴 [ElevenLabs WS Closed] Session finished for PSID: ${senderPsid}`);
-      activeSessions.delete(senderPsid);
-    });
+      this.ws.addEventListener('close', () => {
+        console.log(`🔴 [Durable Object] ElevenLabs WS Closed for PSID: ${senderPsid}`);
+        this.ws = null;
+      });
 
-    ws.addEventListener('error', (err) => {
-      console.error('WS Error:', err);
+      this.ws.addEventListener('error', (err) => {
+        console.error('WS Error in Durable Object:', err);
+      });
     });
-  });
-}
-
-/**
- * Sends reply back to user on Facebook Messenger
- */
-async function sendToMeta(recipientId: string, messageText: string, metaToken: string) {
-  try {
-    const res = await fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${metaToken}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        recipient: { id: recipientId },
-        message: { text: messageText },
-      }),
-    });
-    const result = await res.json();
-    console.log(`🚀 Delivered to Messenger PSID ${recipientId}:`, result);
-  } catch (error) {
-    console.error('Error delivering to Meta:', error);
   }
-}
 
-/**
- * Automatically pushes completed chat transcript to CRM /chats
- */
-async function syncToCrm(senderPsid: string, transcript: Array<{ role: 'user' | 'agent'; content: string }>, syncUrl: string) {
-  try {
-    await fetch(syncUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        senderPsid,
-        platform: 'messenger',
-        messages: transcript,
-      }),
-    });
-    console.log(`✅ Synced completed chat transcript to CRM for PSID: ${senderPsid}`);
-  } catch (e) {
-    console.error('Error syncing chat to CRM:', e);
+  async sendToMeta(recipientId: string, messageText: string) {
+    try {
+      const res = await fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${this.env.META_API}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient: { id: recipientId },
+          message: { text: messageText },
+        }),
+      });
+      const result = await res.json();
+      console.log(`🚀 [Durable Object] Delivered to Messenger PSID ${recipientId}:`, result);
+    } catch (error) {
+      console.error('Error sending message to Meta:', error);
+    }
+  }
+
+  async closeSession(senderPsid: string) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.close();
+      this.ws = null;
+    }
+    // Sync full conversation transcript to CRM
+    if (this.env.CRM_SYNC_URL && this.transcript.length) {
+      try {
+        await fetch(this.env.CRM_SYNC_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            senderPsid,
+            platform: 'messenger',
+            messages: this.transcript,
+          }),
+        });
+        console.log(`✅ Synced session transcript to CRM for PSID: ${senderPsid}`);
+      } catch (e) {
+        console.error('Error syncing transcript to CRM:', e);
+      }
+    }
   }
 }
