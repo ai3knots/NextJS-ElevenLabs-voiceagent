@@ -89,8 +89,8 @@ export async function saveMessengerChatMessage(
       chatDoc.messages.push(...newMessages);
     }
 
-    // Update the overall summary for quick CRM view
-    chatDoc.chatSummary = chatDoc.messages
+    const messagesList = chatDoc.messages || [];
+    chatDoc.chatSummary = messagesList
       .map((m: IChatMessage) => `${m.role === 'user' ? 'Customer' : 'AI Agent'}: ${m.content}`)
       .join('\n\n');
     chatDoc.chatOutcome = 'in_progress';
