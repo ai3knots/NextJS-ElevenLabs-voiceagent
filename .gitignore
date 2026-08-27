@@ -48,3 +48,6 @@ generated_contracts/
 public/contracts/
 document.pdf
 public/document.pdf
+
+# Separate Cloudflare Worker Repo
+cloudflare-worker/
