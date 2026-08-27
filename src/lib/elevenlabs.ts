@@ -202,7 +202,7 @@ export async function getAgentTextResponse(
   options: AgentTextOptions = {}
 ): Promise<string> {
   // Strictly hardcoded Chat Agent ID for Messenger and Text Chats
-  const targetAgentId = options.agentId || 'agent_5601m0tgt63qe8tt5q9qcnfqf5wa';
+  const targetAgentId = 'agent_5601m0tgt63qe8tt5q9qcnfqf5wa';
   console.log(`🤖 Using Dedicated Chat Agent ID: ${targetAgentId}`);
 
   return new Promise((resolve) => {
