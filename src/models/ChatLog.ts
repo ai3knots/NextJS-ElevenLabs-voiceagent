@@ -1,8 +1,17 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export interface IChatMessage {
+  role: 'user' | 'agent';
+  content: string;
+  timestamp?: Date;
+}
+
 export interface IChatLog extends Document {
   leadId?: mongoose.Types.ObjectId;
   elevenlabsConversationId?: string;
+  senderPsid?: string;
+  platform?: 'web' | 'messenger';
+  messages?: IChatMessage[];
   chatStatus: string;
   chatSummary?: string;
   chatErrorReason?: string;
@@ -17,7 +26,16 @@ const ChatLogSchema: Schema = new Schema(
   {
     leadId: { type: Schema.Types.ObjectId, ref: 'Lead' },
     elevenlabsConversationId: { type: String },
-    chatStatus: { type: String, required: true },
+    senderPsid: { type: String, index: true },
+    platform: { type: String, enum: ['web', 'messenger'], default: 'web' },
+    messages: [
+      {
+        role: { type: String, enum: ['user', 'agent'], required: true },
+        content: { type: String, required: true },
+        timestamp: { type: Date, default: Date.now },
+      },
+    ],
+    chatStatus: { type: String, required: true, default: 'completed' },
     chatSummary: { type: String },
     chatErrorReason: { type: String },
     chatOutcome: { type: String },

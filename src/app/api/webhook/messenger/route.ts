@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAgentTextResponse } from '@/lib/elevenlabs';
 import { sendMessageToMeta } from '@/lib/meta';
+import { getMessengerChatHistory, saveMessengerChatMessage } from '@/lib/chatMemory';
 
 // This is the Verify Token you set up in the Meta App Dashboard
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
@@ -43,20 +44,36 @@ export async function POST(request: Request) {
         
         if (!webhookEvent) continue;
 
+        // Ignore echo messages (messages sent by the page/bot itself)
+        if (webhookEvent.message?.is_echo) {
+          console.log('Ignoring echo message.');
+          continue;
+        }
+
         // Get the sender PSID
         const senderPsid = webhookEvent.sender?.id;
         
-        // Check if the event is a message or postback and
-        // pass the event to the appropriate handler function
-        if (webhookEvent.message && webhookEvent.message.text) {
+        // Check if the event is a message with text
+        if (senderPsid && webhookEvent.message && webhookEvent.message.text) {
           const incomingText = webhookEvent.message.text;
-          console.log(`Received message from ${senderPsid}: ${incomingText}`);
+          console.log(`💬 Received message from ${senderPsid}: ${incomingText}`);
 
-          // 1. Get response from ElevenLabs Agent
-          const agentReply = await getAgentTextResponse(incomingText);
+          // 1. Fetch user's previous conversation history from MongoDB (ChatLog)
+          const { isReturningUser, historyTranscript } = await getMessengerChatHistory(senderPsid);
+          console.log(`🧠 Context retrieved for ${senderPsid}. Returning user: ${isReturningUser}`);
 
-          // 2. Send the response back to Meta Messenger
+          // 2. Get contextual response from ElevenLabs Agent
+          const agentReply = await getAgentTextResponse(incomingText, {
+            historyContext: historyTranscript,
+            isReturningUser,
+          });
+          console.log(`🤖 Agent Reply for ${senderPsid}: ${agentReply}`);
+
+          // 3. Send the response back to Meta Messenger
           await sendMessageToMeta(senderPsid, agentReply);
+
+          // 4. Save message turn in MongoDB ChatLog for CRM and long-term memory
+          await saveMessengerChatMessage(senderPsid, incomingText, agentReply);
         }
       }
 

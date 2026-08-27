@@ -191,8 +191,17 @@ import WebSocket from 'ws';
  * Connects via WebSocket, sends a user message, accumulates the agent's response,
  * and resolves once the response stops.
  */
-export async function getAgentTextResponse(text: string, agentId?: string): Promise<string> {
-  const targetAgentId = agentId || AGENT_ID;
+export interface AgentTextOptions {
+  historyContext?: string;
+  isReturningUser?: boolean;
+  agentId?: string;
+}
+
+export async function getAgentTextResponse(
+  text: string, 
+  options: AgentTextOptions = {}
+): Promise<string> {
+  const targetAgentId = options.agentId || process.env.CHAT_AGENT_ID || 'agent_5601m0tgt63qe8tt5q9qcnfqf5wa';
   
   if (!targetAgentId) {
     return "Error: No Agent ID configured.";
@@ -202,7 +211,7 @@ export async function getAgentTextResponse(text: string, agentId?: string): Prom
     try {
       const ws = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${targetAgentId}`);
       
-      let fullResponse = "";
+      const responseChunks: string[] = [];
       let timeoutId: NodeJS.Timeout | null = null;
       let connectionClosed = false;
 
@@ -218,19 +227,57 @@ export async function getAgentTextResponse(text: string, agentId?: string): Prom
           ws.close();
         }
 
-        resolve(fullResponse.trim() || "Sorry, I couldn't process that.");
+        let finalChunks = responseChunks;
+        if (options.isReturningUser && responseChunks.length > 1) {
+          // Filter out the initial welcome greeting so returning users get a seamless answer
+          const withoutGreeting = responseChunks.filter(
+            (c) => !c.toLowerCase().includes('welcome to marketing and publishing house')
+          );
+          if (withoutGreeting.length > 0) {
+            finalChunks = withoutGreeting;
+          }
+        }
+
+        const combined = finalChunks.join('\n\n').trim();
+        resolve(combined || "Sorry, I couldn't process that.");
       };
 
       ws.on('open', () => {
-        // Send the user message
-        const messagePayload = {
-          type: 'user_message',
-          text: text
-        };
-        ws.send(JSON.stringify(messagePayload));
+        // If the user has past conversation history, inject it and suppress repeated greeting
+        if (options.isReturningUser || options.historyContext) {
+          const initPayload = {
+            type: 'conversation_initiation_client_data',
+            conversation_initiation_client_data: {
+              conversation_config_override: {
+                agent: {
+                  first_message: '',
+                },
+              },
+              dynamic_variables: {
+                conversation_history: options.historyContext || '',
+              },
+            },
+          };
+          ws.send(JSON.stringify(initPayload));
+        }
+
+        // Format message with past context if available to guarantee LLM continuity
+        const textToSend = (options.historyContext && !text.startsWith('[Context'))
+          ? `[Ongoing Conversation Transcript]:\n${options.historyContext}\n\n[User's Latest Question/Response]:\n${text}`
+          : text;
+
+        // Send the user message with a slight delay so initialization is processed
+        setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'user_message',
+              text: textToSend,
+            }));
+          }
+        }, 150);
         
-        // Failsafe timeout: if agent doesn't reply within 8 seconds, abort
-        timeoutId = setTimeout(completeInteraction, 8000);
+        // Failsafe timeout: if agent doesn't reply within 10 seconds, abort
+        timeoutId = setTimeout(completeInteraction, 10000);
       });
 
       ws.on('message', (data) => {
@@ -238,17 +285,17 @@ export async function getAgentTextResponse(text: string, agentId?: string): Prom
           const parsed = JSON.parse(data.toString());
           
           if (parsed.type === 'agent_response') {
-            const chunk = parsed.agent_response_event?.agent_response || "";
+            const chunk = parsed.agent_response_event?.agent_response?.trim() || "";
             if (chunk) {
-              fullResponse += chunk;
+              responseChunks.push(chunk);
               
-              // Reset the timeout. If we stop getting chunks for 1.5 seconds, assume agent finished.
+              // Reset the timeout. Wait 2 seconds after the last chunk before closing
               if (timeoutId) clearTimeout(timeoutId);
-              timeoutId = setTimeout(completeInteraction, 1500);
+              timeoutId = setTimeout(completeInteraction, 2000);
             }
           } else if (parsed.type === 'error') {
             console.error('ElevenLabs WebSocket Error:', parsed);
-            fullResponse += " (Encountered an error with the AI agent)";
+            responseChunks.push("(Encountered an error with the AI agent)");
             completeInteraction();
           }
         } catch (e) {
