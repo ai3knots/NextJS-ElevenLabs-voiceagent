@@ -201,11 +201,9 @@ export async function getAgentTextResponse(
   text: string, 
   options: AgentTextOptions = {}
 ): Promise<string> {
-  const targetAgentId = options.agentId || process.env.CHAT_AGENT_ID || 'agent_5601m0tgt63qe8tt5q9qcnfqf5wa';
-  
-  if (!targetAgentId) {
-    return "Error: No Agent ID configured.";
-  }
+  // Strictly hardcoded Chat Agent ID for Messenger and Text Chats
+  const targetAgentId = options.agentId || 'agent_5601m0tgt63qe8tt5q9qcnfqf5wa';
+  console.log(`🤖 Using Dedicated Chat Agent ID: ${targetAgentId}`);
 
   return new Promise((resolve) => {
     try {
