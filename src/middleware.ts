@@ -19,6 +19,7 @@ const PUBLIC_PREFIXES = [
   '/api/validate-card',
   '/api/contracts',
   '/api/chat', // Allow public access to chat API
+  '/api/webhook/messenger', // Allow Meta Webhook public access
   '/_next',
   '/favicon.ico',
   '/api/conversations', // For audio playback if needed

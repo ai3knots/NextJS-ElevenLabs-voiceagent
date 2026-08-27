@@ -183,3 +183,91 @@ export async function runConversationAnalysis(conversationId: string) {
     return null;
   }
 }
+
+import WebSocket from 'ws';
+
+/**
+ * Sends a text message to the ElevenLabs Agent and retrieves the response.
+ * Connects via WebSocket, sends a user message, accumulates the agent's response,
+ * and resolves once the response stops.
+ */
+export async function getAgentTextResponse(text: string, agentId?: string): Promise<string> {
+  const targetAgentId = agentId || AGENT_ID;
+  
+  if (!targetAgentId) {
+    return "Error: No Agent ID configured.";
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const ws = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${targetAgentId}`);
+      
+      let fullResponse = "";
+      let timeoutId: NodeJS.Timeout | null = null;
+      let connectionClosed = false;
+
+      // Function to finish the interaction and resolve
+      const completeInteraction = () => {
+        if (connectionClosed) return;
+        connectionClosed = true;
+        
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        // Close websocket
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        }
+
+        resolve(fullResponse.trim() || "Sorry, I couldn't process that.");
+      };
+
+      ws.on('open', () => {
+        // Send the user message
+        const messagePayload = {
+          type: 'user_message',
+          text: text
+        };
+        ws.send(JSON.stringify(messagePayload));
+        
+        // Failsafe timeout: if agent doesn't reply within 8 seconds, abort
+        timeoutId = setTimeout(completeInteraction, 8000);
+      });
+
+      ws.on('message', (data) => {
+        try {
+          const parsed = JSON.parse(data.toString());
+          
+          if (parsed.type === 'agent_response') {
+            const chunk = parsed.agent_response_event?.agent_response || "";
+            if (chunk) {
+              fullResponse += chunk;
+              
+              // Reset the timeout. If we stop getting chunks for 1.5 seconds, assume agent finished.
+              if (timeoutId) clearTimeout(timeoutId);
+              timeoutId = setTimeout(completeInteraction, 1500);
+            }
+          } else if (parsed.type === 'error') {
+            console.error('ElevenLabs WebSocket Error:', parsed);
+            fullResponse += " (Encountered an error with the AI agent)";
+            completeInteraction();
+          }
+        } catch (e) {
+          console.error("Error parsing WS message", e);
+        }
+      });
+
+      ws.on('close', () => {
+        if (!connectionClosed) completeInteraction();
+      });
+
+      ws.on('error', (err) => {
+        console.error('WebSocket Error:', err);
+        if (!connectionClosed) completeInteraction();
+      });
+
+    } catch (error: any) {
+      console.error('Error getting agent text response:', error.message);
+      resolve("Sorry, I am having trouble connecting to my brain right now.");
+    }
+  });
+}
