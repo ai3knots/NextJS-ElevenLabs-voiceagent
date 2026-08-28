@@ -28,7 +28,7 @@ export default async function LeadsPage() {
             <ImportLeadsModal currentAgentId={currentAgentId} />
             <Link 
               href="/leads/create" 
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-all shadow-[0_2px_4px_rgba(79,70,229,0.2)] hover:-translate-y-px"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 hover:opacity-95 text-white rounded-xl font-bold text-sm transition-all shadow-[0_4px_12px_rgba(245,158,11,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(245,158,11,0.4)]"
             >
               <Plus size={18} />
               Add Lead

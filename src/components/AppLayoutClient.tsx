@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 import ConvaiWidget from '@/components/ConvaiWidget';
+import ChatWidget from '@/components/ChatWidget';
 
 export default function AppLayoutClient({
   children,
@@ -24,6 +25,10 @@ export default function AppLayoutClient({
     return <>{children}</>;
   }
 
+  // Determine active widget behavior
+  const isChatDetailsPage = pathname?.startsWith('/chats/') && pathname !== '/chats';
+  const isChatPage = pathname === '/chats' || pathname === '/chat-agent';
+
   return (
     <>
       <Sidebar />
@@ -39,7 +44,12 @@ export default function AppLayoutClient({
         <main className="p-8 max-w-[1300px] w-full mx-auto">{children}</main>
       </div>
 
-      <ConvaiWidget agentId={currentAgentId} />
+      {/* No floating widget on chat details page; ChatWidget on /chats & /chat-agent; ConvaiWidget elsewhere */}
+      {isChatDetailsPage ? null : isChatPage ? (
+        <ChatWidget />
+      ) : (
+        <ConvaiWidget agentId={currentAgentId} />
+      )}
     </>
   );
 }

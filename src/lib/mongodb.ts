@@ -1,10 +1,7 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI!;
+let MONGODB_URI = process.env.MONGODB_URI;
 
-if (!MONGODB_URI) {
-  throw new Error('Please define the MONGODB_URI environment variable');
-}
 
 let cached = (global as any).mongoose;
 
@@ -98,8 +95,12 @@ async function resolveMongoUri(uri: string): Promise<string> {
     return uri;
   }
 }
-
 async function connectDB() {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error('Please define the MONGODB_URI environment variable');
+  }
+
   if (cached.conn) {
     return cached.conn;
   }
@@ -110,7 +111,7 @@ async function connectDB() {
     };
 
     cached.promise = (async () => {
-      const targetUri = await resolveMongoUri(MONGODB_URI);
+      const targetUri = await resolveMongoUri(uri);
       return mongoose.connect(targetUri, opts);
     })();
   }

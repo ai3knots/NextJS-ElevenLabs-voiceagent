@@ -1,41 +1,33 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
+import { executeChatAgent } from '@/agent';
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const { messages } = await request.json();
+    const body = await request.json();
+    const { message, sessionId, platform = 'web' } = body;
 
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: "Invalid messages format" }, { status: 400 });
+    if (!message || typeof message !== 'string') {
+      return NextResponse.json({ error: 'Message text is required' }, { status: 400 });
     }
 
-    const lastMessage = messages[messages.length - 1]?.content || "";
+    const currentSessionId = sessionId || `web_session_${Date.now()}`;
 
-    // IMPORTANT: Here you would integrate with your LLM of choice (e.g., OpenAI, Anthropic) 
-    // using the specific prompt for agent_5601m0tgt63qe8tt5q9qcnfqf5wa.
-    // For demonstration of the natural typing UI, we provide a simulated natural response.
-    
-    // Simulate natural processing delay (3 to 6 seconds)
-    const delay = Math.floor(Math.random() * 3000) + 3000;
-    await new Promise((resolve) => setTimeout(resolve, delay));
-
-    let reply = "I'm here to help you publish your book. Could you tell me a little bit about what you're writing?";
-    
-    if (lastMessage.toLowerCase().includes("hello") || lastMessage.toLowerCase().includes("hi")) {
-      reply = "Hello! I'm the Nationwide Publishing agent. How can I assist you with your manuscript today?";
-    } else if (lastMessage.toLowerCase().includes("cost") || lastMessage.toLowerCase().includes("price")) {
-      reply = "Our Nationwide Publishing Plan is currently available for a one-time fee of $999. Would you like me to go over what's included?";
-    } else if (lastMessage.length > 20) {
-      reply = "That sounds fascinating! Have you already completed the manuscript, or are you still in the writing phase?";
-    }
+    const result = await executeChatAgent({
+      sessionId: currentSessionId,
+      userMessage: message.trim(),
+      platform: platform as 'web' | 'messenger',
+    });
 
     return NextResponse.json({
-      role: "agent",
-      content: reply,
+      success: true,
+      reply: result.reply,
+      sessionId: result.sessionId,
+      chatLogId: result.chatLogId,
     });
   } catch (error: any) {
-    console.error("Chat API Error:", error);
+    console.error('Error in /api/chat route:', error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: error.message || 'Failed to process chat turn' },
       { status: 500 }
     );
   }

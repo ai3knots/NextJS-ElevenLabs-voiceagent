@@ -2,21 +2,17 @@ import { MessageCircle } from "lucide-react";
 import connectDB from "@/lib/mongodb";
 import ChatLog from "@/models/ChatLog";
 import ChatsTableClient from "./ChatsTableClient";
+import { sanitizeChatLogs } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
 export default async function ChatsPage() {
   await connectDB();
   
-  // Convert mongoose documents to lean plain objects and stringify IDs for passing to Client Component
+  // Convert mongoose documents to 100% plain serializable objects for Client Component
   const rawChats = await ChatLog.find().sort({ createdAt: -1 }).lean();
-  const chats = rawChats.map(c => ({
-    ...c,
-    _id: c._id.toString(),
-    createdAt: c.createdAt.toISOString(),
-    updatedAt: c.updatedAt?.toISOString(),
-    leadId: c.leadId ? c.leadId.toString() : null,
-  }));
+  const chats = sanitizeChatLogs(rawChats);
+
 
   return (
     <div className="min-h-screen bg-[#f8fafc] p-6 lg:p-10 font-sans">
@@ -26,7 +22,7 @@ export default async function ChatsPage() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-200">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/25">
                 <MessageCircle className="text-white w-5 h-5" />
               </div>
               <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Web Chats</h1>

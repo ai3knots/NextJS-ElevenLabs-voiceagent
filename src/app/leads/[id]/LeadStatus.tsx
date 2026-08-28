@@ -52,7 +52,7 @@ export default function LeadStatus({ lead, logs }: { lead: any, logs: any[] }) {
           onClick={() => setActiveTab("timeline")}
           className={`pb-3 font-bold text-sm flex items-center gap-2 transition-colors ${
             activeTab === "timeline"
-              ? "border-b-2 border-indigo-600 text-indigo-600"
+              ? "border-b-2 border-amber-500 text-amber-600 font-extrabold"
               : "text-slate-400 hover:text-slate-600"
           }`}
         >
@@ -63,7 +63,7 @@ export default function LeadStatus({ lead, logs }: { lead: any, logs: any[] }) {
           onClick={() => setActiveTab("raw")}
           className={`pb-3 font-bold text-sm flex items-center gap-2 transition-colors ${
             activeTab === "raw"
-              ? "border-b-2 border-indigo-600 text-indigo-600"
+              ? "border-b-2 border-amber-500 text-amber-600 font-extrabold"
               : "text-slate-400 hover:text-slate-600"
           }`}
         >
@@ -98,7 +98,7 @@ export default function LeadStatus({ lead, logs }: { lead: any, logs: any[] }) {
 
                     <div className="flex items-center gap-2">
                       {log.callOutcome && (
-                        <span className="px-2.5 py-0.5 rounded-md text-xs font-mono font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                        <span className="px-2.5 py-0.5 rounded-md text-xs font-mono font-extrabold bg-amber-50 text-amber-800 border border-amber-200/80">
                           {log.callOutcome}
                         </span>
                       )}

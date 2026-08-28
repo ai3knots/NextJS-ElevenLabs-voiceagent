@@ -123,9 +123,9 @@ export default async function LeadDetailsPage({ params }: { params: Promise<{ id
 
             {/* Book Project Info */}
             {(lead.bookTopic || lead.writingStage) && (
-              <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
-                  <BookOpen size={14} className="text-indigo-600" />
+              <div className="p-4 bg-amber-50/60 border border-amber-200/80 rounded-xl space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-amber-900">
+                  <BookOpen size={14} className="text-amber-600" />
                   Author Book Details
                 </div>
                 {lead.bookTopic && (

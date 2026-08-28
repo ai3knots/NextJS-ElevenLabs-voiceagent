@@ -44,7 +44,7 @@ export default function TriggerCallButton({ leadId, currentStatus }: { leadId: s
     <button
       onClick={handleTriggerCall}
       disabled={isTriggering}
-      className="w-full py-4 bg-[#5c4fff] hover:bg-indigo-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-[0_4px_14px_0_rgba(99,102,241,0.39)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.23)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+      className="w-full py-4 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 hover:opacity-95 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-[0_4px_14px_0_rgba(245,158,11,0.35)] hover:shadow-[0_6px_20px_rgba(245,158,11,0.45)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {isTriggering ? <Loader2 size={18} className="animate-spin" /> : <Phone size={18} />}
       {isTriggering ? 'Initiating...' : 'Retry Outbound Voice Call'}

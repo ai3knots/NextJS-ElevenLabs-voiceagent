@@ -49,10 +49,10 @@ export default function CreateLeadPage() {
             <h3 className="text-[0.9rem] font-bold text-slate-800">Call Dispatch Strategy</h3>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <label className="relative flex cursor-pointer rounded-2xl border bg-white p-5 shadow-sm transition-all has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/50 has-[:checked]:ring-1 has-[:checked]:ring-indigo-600 hover:border-indigo-200">
+              <label className="relative flex cursor-pointer rounded-2xl border bg-white p-5 shadow-sm transition-all has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50/40 has-[:checked]:ring-1 has-[:checked]:ring-amber-500 hover:border-amber-200">
                 <input type="radio" name="callType" value="manual" className="peer sr-only" defaultChecked />
                 <div className="flex gap-4">
-                  <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white peer-checked:border-[6px] peer-checked:border-indigo-600"></div>
+                  <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white peer-checked:border-[6px] peer-checked:border-amber-500"></div>
                   <div>
                     <span className="block text-[0.95rem] font-bold text-slate-900">Manual Call</span>
                     <span className="mt-1 block text-[0.85rem] text-slate-500 leading-relaxed font-medium">Trigger the call manually from the lead details page.</span>
@@ -60,10 +60,10 @@ export default function CreateLeadPage() {
                 </div>
               </label>
               
-              <label className="relative flex cursor-pointer rounded-2xl border bg-white p-5 shadow-sm transition-all has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/50 has-[:checked]:ring-1 has-[:checked]:ring-indigo-600 hover:border-indigo-200">
+              <label className="relative flex cursor-pointer rounded-2xl border bg-white p-5 shadow-sm transition-all has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50/40 has-[:checked]:ring-1 has-[:checked]:ring-amber-500 hover:border-amber-200">
                 <input type="radio" name="callType" value="auto" className="peer sr-only" />
                 <div className="flex gap-4">
-                  <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white peer-checked:border-[6px] peer-checked:border-indigo-600"></div>
+                  <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white peer-checked:border-[6px] peer-checked:border-amber-500"></div>
                   <div>
                     <span className="block text-[0.95rem] font-bold text-slate-900">Automatic Call</span>
                     <span className="mt-1 block text-[0.85rem] text-slate-500 leading-relaxed font-medium">Schedule the AI agent to call automatically after creation.</span>
@@ -71,7 +71,6 @@ export default function CreateLeadPage() {
                 </div>
               </label>
             </div>
-            {/* Keeping the delay input hidden or simple, as the UI screenshot didn't prominently show it. We can leave it hidden for manual and show for auto, but for simplicity we'll just include a hidden input or simple input below if needed. The original had it. Let's add a small delay input if auto is selected. Actually, the user's screenshot didn't show delay. I will just pass a hidden value 0 for it to satisfy backend action. */}
             <input type="hidden" name="callDelayMinutes" value="0" />
           </div>
 
@@ -79,7 +78,7 @@ export default function CreateLeadPage() {
             <Link href="/leads" className="px-6 py-2.5 rounded-xl text-[0.9rem] font-bold text-slate-600 hover:bg-slate-100 transition-colors">
               Cancel
             </Link>
-            <button type="submit" className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[0.9rem] font-bold hover:bg-indigo-700 transition-all shadow-[0_2px_8px_rgba(79,70,229,0.25)] hover:-translate-y-px">
+            <button type="submit" className="px-6 py-2.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 hover:opacity-95 text-white rounded-xl text-[0.9rem] font-bold transition-all shadow-[0_4px_12px_rgba(245,158,11,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(245,158,11,0.4)]">
               Save Lead & Proceed
             </button>
           </div>

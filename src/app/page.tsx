@@ -61,23 +61,23 @@ export default async function Dashboard() {
       </div>
 
       {/* ElevenLabs Agent Live Preview Banner */}
-      <div className="rounded-2xl bg-gradient-to-br from-[#1e1b4b] to-[#312e81] p-6 lg:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 border-none shadow-sm">
+      <div className="rounded-2xl bg-gradient-to-br from-[#090D14] via-[#141B26] to-[#090D14] p-6 lg:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 border border-amber-500/25 shadow-md">
         <div className="max-w-[650px]">
-          <div className="inline-flex items-center gap-2 bg-indigo-500/25 border border-indigo-200/20 px-3.5 py-1.5 rounded-full text-xs font-bold text-indigo-200 mb-3">
-            <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+          <div className="inline-flex items-center gap-2 bg-amber-500/20 border border-amber-400/30 px-3.5 py-1.5 rounded-full text-xs font-bold text-amber-400 mb-3">
+            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
             LIVE CONVAI WIDGET ACTIVE
           </div>
           <h3 className="text-2xl font-extrabold text-white mb-2">Voice Agent Live</h3>
-          <p className="text-indigo-200 text-[0.925rem] leading-relaxed m-0">
+          <p className="text-slate-300 text-[0.925rem] leading-relaxed m-0">
             Experience real-time interactive voice conversation with your configured ElevenLabs Agent right inside the browser. Click the widget icon floating at the bottom right corner of your screen to launch a live test call.
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <span className="text-[0.85rem] font-semibold text-indigo-200 bg-white/10 border border-white/15 px-4 py-2.5 rounded-xl font-mono">
+          <span className="text-[0.85rem] font-semibold text-amber-300/90 bg-white/5 border border-amber-500/20 px-4 py-2.5 rounded-xl font-mono">
             Agent ID: {agentId}
           </span>
           {displayPhoneNumber && (
-            <span className="text-[0.85rem] font-semibold text-emerald-200 bg-emerald-900/40 border border-emerald-400/20 px-4 py-2.5 rounded-xl font-mono flex items-center gap-2">
+            <span className="text-[0.85rem] font-semibold text-emerald-300 bg-emerald-950/60 border border-emerald-400/30 px-4 py-2.5 rounded-xl font-mono flex items-center gap-2">
               <PhoneCall size={14} /> {displayPhoneNumber}
             </span>
           )}
@@ -90,7 +90,7 @@ export default async function Dashboard() {
           <h3 className="text-[1.15rem] font-bold text-slate-900">Recent Leads</h3>
           <div className="flex items-center gap-3">
             <CleanDbClientButton action={clearDatabaseAction} />
-            <Link href="/leads/create" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold text-sm transition-all shadow-[0_2px_4px_rgba(79,70,229,0.2)] hover:-translate-y-px hover:shadow-[0_4px_8px_rgba(79,70,229,0.3)]">
+            <Link href="/leads/create" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 hover:opacity-95 text-white rounded-xl font-bold text-sm transition-all shadow-[0_4px_12px_rgba(245,158,11,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(245,158,11,0.4)]">
               <Plus size={18} />
               Add New Lead
             </Link>

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getAgentTextResponse } from '@/lib/elevenlabs';
+import { executeChatAgent } from '@/agent';
 import { sendMessageToMeta } from '@/lib/meta';
-import { getMessengerChatHistory, saveMessengerChatMessage } from '@/lib/chatMemory';
 
 // This is the Verify Token you set up in the Meta App Dashboard
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
@@ -56,24 +55,19 @@ export async function POST(request: Request) {
         // Check if the event is a message with text
         if (senderPsid && webhookEvent.message && webhookEvent.message.text) {
           const incomingText = webhookEvent.message.text;
-          console.log(`💬 Received message from ${senderPsid}: ${incomingText}`);
+          console.log(`💬 Received Messenger message from ${senderPsid}: "${incomingText}"`);
 
-          // 1. Fetch user's previous conversation history from MongoDB (ChatLog)
-          const { isReturningUser, historyTranscript } = await getMessengerChatHistory(senderPsid);
-          console.log(`🧠 Context retrieved for ${senderPsid}. Returning user: ${isReturningUser}`);
-
-          // 2. Get contextual response from ElevenLabs Agent
-          const agentReply = await getAgentTextResponse(incomingText, {
-            historyContext: historyTranscript,
-            isReturningUser,
+          // 1. Execute LangGraph + Gemini 3.5 Flash-Lite Agent (handles memory, tools, and DB persistence)
+          const agentResponse = await executeChatAgent({
+            sessionId: senderPsid,
+            userMessage: incomingText,
+            platform: 'messenger',
           });
-          console.log(`🤖 Agent Reply for ${senderPsid}: ${agentReply}`);
 
-          // 3. Send the response back to Meta Messenger
-          await sendMessageToMeta(senderPsid, agentReply);
+          console.log(`🤖 Alex Agent Reply for ${senderPsid}: "${agentResponse.reply}"`);
 
-          // 4. Save message turn in MongoDB ChatLog for CRM and long-term memory
-          await saveMessengerChatMessage(senderPsid, incomingText, agentReply);
+          // 2. Deliver the response back to Meta Messenger
+          await sendMessageToMeta(senderPsid, agentResponse.reply);
         }
       }
 

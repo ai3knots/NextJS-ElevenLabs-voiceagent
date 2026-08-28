@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, ArrowRight, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
@@ -43,31 +43,46 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-4 sm:p-6 text-slate-100">
-      {/* Background Decorative Blur Orbs */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="relative min-h-screen w-full flex items-center justify-center bg-[#070A11] p-4 sm:p-6 text-slate-100 overflow-hidden">
+      {/* Background Decorative Ambient Glows */}
+      <div className="absolute -top-32 -left-32 w-[32rem] h-[32rem] bg-amber-500/10 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute -bottom-32 -right-32 w-[34rem] h-[34rem] bg-orange-600/10 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40rem] h-[40rem] bg-amber-500/5 rounded-full blur-[180px] pointer-events-none" />
 
-      <div className="relative w-full max-w-md bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 sm:p-10 shadow-2xl shadow-black/50">
+      {/* Login Card */}
+      <div 
+        style={{ maxWidth: '440px' }}
+        className="relative w-full bg-[#0E1526]/90 backdrop-blur-2xl border border-slate-800/90 hover:border-amber-500/30 rounded-3xl p-8 sm:p-10 shadow-[0_20px_60px_rgba(0,0,0,0.8),0_0_35px_rgba(245,158,11,0.06)] transition-all duration-300 mx-auto"
+      >
         
         {/* Header / Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 shadow-lg shadow-indigo-500/25 mb-4">
-            <ShieldCheck className="w-7 h-7 text-white" />
+          {/* Logo Badge Container */}
+          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-slate-800/90 to-slate-900/90 border border-amber-500/30 shadow-[0_0_25px_rgba(245,158,11,0.2)] mb-4 group transition-transform duration-300 hover:scale-105">
+            <img 
+              src="/3knotslogo.png" 
+              alt="3Knots Digital Logo" 
+              className="h-12 w-auto object-contain filter drop-shadow-[0_2px_12px_rgba(245,158,11,0.4)]"
+            />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-            Voice Agent CRM
-          </h1>
-          <p className="text-sm text-slate-400 mt-2">
-            Secure Portal • Marketing And Publishing House LLC
-          </p>
+
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-wider text-white uppercase">
+              3KNOTS <span className="text-amber-500 font-extrabold">DIGITAL</span>
+            </h1>
+          </div>
+
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold tracking-wide mt-1">
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            <span>Voice Agent CRM & Lead Portal</span>
+          </div>
         </div>
 
         {/* Error Alert */}
         {error && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm flex items-center gap-3">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-            <span>{error}</span>
+          <div className="mb-6 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs sm:text-sm flex items-center gap-2.5 animate-shake">
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+            <span className="font-medium">{error}</span>
           </div>
         )}
 
@@ -75,12 +90,12 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Email Input */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
               Admin Email
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Mail className="w-5 h-5" />
+                <Mail className="w-4 h-4 text-slate-400 group-focus-within:text-amber-400" />
               </div>
               <input
                 type="email"
@@ -88,19 +103,21 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="developer@marketingandpublishinghousellc.com"
-                className="w-full pl-11 pr-4 py-3 bg-slate-800/60 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                className="w-full pl-10 pr-4 py-3 bg-[#131D33]/90 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/25 transition-all shadow-inner"
               />
             </div>
           </div>
 
           {/* Password Input */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+                Password
+              </label>
+            </div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Lock className="w-5 h-5" />
+                <Lock className="w-4 h-4 text-slate-400" />
               </div>
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -108,14 +125,14 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="w-full pl-11 pr-11 py-3 bg-slate-800/60 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                className="w-full pl-10 pr-11 py-3 bg-[#131D33]/90 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/25 transition-all shadow-inner"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 transition-colors"
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-amber-400 transition-colors"
               >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
@@ -124,29 +141,29 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 py-3.5 px-4 bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="w-full mt-3 py-3.5 px-4 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-xl shadow-[0_4px_18px_rgba(245,158,11,0.35)] hover:shadow-[0_6px_25px_rgba(245,158,11,0.5)] transform hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none cursor-pointer"
           >
             {loading ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Verifying credentials...</span>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Authenticating...</span>
               </>
             ) : (
               <>
                 <span>Sign In to Dashboard</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </>
             )}
           </button>
         </form>
 
         {/* Footer info */}
-        <div className="mt-8 pt-6 border-t border-slate-800/80 text-center">
-          <p className="text-xs text-slate-500">
-            Protected by Encrypted Session Tokens & Zero-Trust Middleware
-          </p>
+        <div className="mt-8 pt-6 border-t border-slate-800/80 flex items-center justify-center gap-2 text-center text-slate-500 text-xs">
+          <ShieldCheck className="w-4 h-4 text-amber-500/70" />
+          <span>Encrypted Session & Zero-Trust Security</span>
         </div>
       </div>
     </div>
   );
 }
+
