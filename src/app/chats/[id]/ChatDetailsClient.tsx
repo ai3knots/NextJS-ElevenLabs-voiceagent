@@ -24,6 +24,39 @@ import { triggerManualCall } from "@/actions/lead.actions";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import Link from "next/link";
+import ConfirmModal from "@/components/ConfirmModal";
+
+// Cleanly format message text: removes raw asterisks/stars and renders clean typography
+function renderFormattedMessage(text: string, isUser: boolean) {
+  if (!text) return null;
+  const lines = text.split('\n');
+
+  return (
+    <div className="space-y-1 leading-relaxed">
+      {lines.map((line, lineIdx) => {
+        const cleanBulletLine = line.replace(/^[\*\-]\s+/, '• ');
+        const parts = cleanBulletLine.split(/(\*\*[^*]+?\*\*)/g);
+
+        return (
+          <p key={lineIdx} className={cleanBulletLine.trim().startsWith('•') ? 'pl-2' : ''}>
+            {parts.map((part, partIdx) => {
+              if (part.startsWith('**') && part.endsWith('**')) {
+                const boldText = part.slice(2, -2).replace(/\*/g, '');
+                return (
+                  <strong key={partIdx} className={`font-bold ${isUser ? 'text-white' : 'text-slate-900'}`}>
+                    {boldText}
+                  </strong>
+                );
+              }
+              const cleanPart = part.replace(/\*/g, '');
+              return <span key={partIdx}>{cleanPart}</span>;
+            })}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
 
 interface ChatDetailsClientProps {
   chat: any;
@@ -33,6 +66,8 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [currentSummary, setCurrentSummary] = useState(chat.chatSummary || "");
   const [currentOutcome, setCurrentOutcome] = useState(chat.chatOutcome || "Inquiry / Discussion");
   const [analysis, setAnalysis] = useState<any>(chat.rawWebhookPayload?.analysis || null);
@@ -69,14 +104,21 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm("Are you sure you want to delete this chat log?")) return;
-    const res = await deleteChatAction(chat._id);
-    if (res.success) {
-      toast.success("Chat log deleted");
-      router.push("/chats");
-    } else {
-      toast.error("Failed to delete chat log");
+  const handleConfirmDelete = async () => {
+    try {
+      setIsDeleting(true);
+      const res = await deleteChatAction(chat._id);
+      if (res.success) {
+        toast.success("Chat log deleted");
+        router.push("/chats");
+      } else {
+        toast.error(res.error || "Failed to delete chat log");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete chat log");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -273,12 +315,24 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
           {/* Delete Log Option */}
           <div className="flex justify-end">
             <button
-              onClick={handleDelete}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 text-xs font-bold transition-all"
+              onClick={() => setShowDeleteModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 text-xs font-bold transition-all cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" /> Delete Chat Record
             </button>
           </div>
+
+          <ConfirmModal
+            isOpen={showDeleteModal}
+            onClose={() => setShowDeleteModal(false)}
+            onConfirm={handleConfirmDelete}
+            title="Delete Chat Log?"
+            message="Are you sure you want to permanently delete this chat log and all associated messages? This action cannot be undone."
+            confirmText="Delete Log"
+            cancelText="Cancel"
+            variant="danger"
+            isLoading={isDeleting}
+          />
 
         </div>
 
@@ -352,7 +406,7 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
                             </span>
                           )}
                         </div>
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                        {renderFormattedMessage(msg.content, isUser)}
                       </div>
                     </div>
                   );

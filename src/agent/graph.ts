@@ -13,7 +13,7 @@ export function createAlexChatModel(modelName = 'gemini-3.5-flash-lite') {
   return new ChatGoogleGenerativeAI({
     apiKey: currentKey,
     model: modelName,
-    temperature: 0.35,
+    temperature: 0.1,
   }).bindTools(AGENT_TOOLS);
 }
 

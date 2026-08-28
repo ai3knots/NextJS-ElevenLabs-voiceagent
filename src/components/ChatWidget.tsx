@@ -8,13 +8,12 @@ import {
   User, 
   Sparkles, 
   ChevronDown, 
-  Check, 
-  Copy,
   RotateCcw,
   BookOpen,
   ArrowRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '@/components/ConfirmModal';
 
 interface Message {
   id: string;
@@ -46,19 +45,57 @@ const AlexAvatar = ({ size = 'md' }: { size?: 'sm' | 'md' }) => {
   );
 };
 
-export default function ChatWidget({ initialOpen = false, inline = false }: ChatWidgetProps) {
+// Cleanly format message text: removes raw asterisks/stars and renders clean bold text
+function renderFormattedMessage(text: string, isUser: boolean) {
+  if (!text) return null;
+  const lines = text.split('\n');
+
+  return (
+    <div className="space-y-1 leading-relaxed">
+      {lines.map((line, lineIdx) => {
+        // Clean leading asterisks or dashes into neat bullet point dots
+        const cleanBulletLine = line.replace(/^[\*\-]\s+/, '• ');
+        // Split by markdown bold (**text**)
+        const parts = cleanBulletLine.split(/(\*\*[^*]+?\*\*)/g);
+
+        return (
+          <p key={lineIdx} className={cleanBulletLine.trim().startsWith('•') ? 'pl-2' : ''}>
+            {parts.map((part, partIdx) => {
+              if (part.startsWith('**') && part.endsWith('**')) {
+                const boldText = part.slice(2, -2).replace(/\*/g, '');
+                return (
+                  <strong key={partIdx} className={`font-bold ${isUser ? 'text-white' : 'text-slate-900'}`}>
+                    {boldText}
+                  </strong>
+                );
+              }
+              // Strip any stray single asterisks/stars
+              const cleanPart = part.replace(/\*/g, '');
+              return <span key={partIdx}>{cleanPart}</span>;
+            })}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function ChatWidget({ 
+  initialOpen = false, 
+  inline = false,
+  customSessionId 
+}: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(initialOpen || inline);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showClearModal, setShowClearModal] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const activeTimersRef = useRef<NodeJS.Timeout[]>([]);
   const hasUserRepliedRef = useRef<boolean>(false);
-  const idleFollowupFiredRef = useRef<boolean>(false);
 
   // Clear all pending automated timers
   const clearAllSequenceTimers = useCallback(() => {
@@ -164,17 +201,20 @@ export default function ChatWidget({ initialOpen = false, inline = false }: Chat
     }
   }, [messages, isLoading, isOpen, inline]);
 
-  // Focus input when opened
+  // Keep input focused when opened or whenever loading finishes
   useEffect(() => {
-    if (isOpen && !inline) {
-      setTimeout(() => inputRef.current?.focus(), 150);
+    if (isOpen || inline) {
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [isOpen, inline]);
+  }, [isOpen, inline, isLoading]);
 
   // Main message sender
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputValue).trim();
     if (!text || isLoading) return;
+
+    // Immediately preserve focus
+    setTimeout(() => inputRef.current?.focus(), 20);
 
     // User interacted: permanently stop onboarding timer sequence
     hasUserRepliedRef.current = true;
@@ -212,22 +252,6 @@ export default function ChatWidget({ initialOpen = false, inline = false }: Chat
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         setMessages((prev) => [...prev, agentMsg]);
-
-        // Schedule gentle re-engagement if user goes idle for 45 seconds
-        if (!idleFollowupFiredRef.current) {
-          addSequenceTimer(() => {
-            idleFollowupFiredRef.current = true;
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `idle_${Date.now()}`,
-                role: 'agent',
-                text: "Still there? Feel free to ask any questions about our publishing roadmap or service options!",
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              }
-            ]);
-          }, 45000);
-        }
       } else {
         throw new Error(data.error || 'No response received');
       }
@@ -241,13 +265,13 @@ export default function ChatWidget({ initialOpen = false, inline = false }: Chat
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
+      setTimeout(() => inputRef.current?.focus(), 30);
     }
   };
 
   const handleClearChat = () => {
     clearAllSequenceTimers();
     hasUserRepliedRef.current = false;
-    idleFollowupFiredRef.current = false;
 
     const newId = `web_user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     localStorage.setItem('mph_chat_session_id', newId);
@@ -307,17 +331,10 @@ export default function ChatWidget({ initialOpen = false, inline = false }: Chat
     toast.success('Chat history cleared!');
   };
 
-  const handleCopyText = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    toast.success('Copied to clipboard', { duration: 1500 });
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  // Container styling
+  // Container styling - enlarged so lengthy plan responses render with plenty of room
   const containerClass = inline
-    ? 'w-full h-[640px] flex flex-col bg-white rounded-3xl shadow-xl border border-slate-200/80 overflow-hidden'
-    : 'fixed bottom-6 right-6 z-50 flex flex-col w-[390px] sm:w-[430px] h-[600px] max-h-[86vh] bg-white rounded-3xl shadow-[0_20px_50px_rgba(15,23,42,0.35)] border border-slate-200/80 overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-5';
+    ? 'w-full h-[720px] flex flex-col bg-white rounded-3xl shadow-xl border border-slate-200/80 overflow-hidden'
+    : 'fixed bottom-6 right-6 z-50 flex flex-col w-[430px] sm:w-[490px] md:w-[520px] h-[720px] max-h-[92vh] bg-white rounded-3xl shadow-[0_25px_60px_rgba(15,23,42,0.35)] border border-slate-200/80 overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-5';
 
   return (
     <>
@@ -408,31 +425,16 @@ export default function ChatWidget({ initialOpen = false, inline = false }: Chat
                         : 'bg-white text-slate-900 border border-slate-200/80 rounded-tl-xs shadow-slate-200/50'
                     }`}
                   >
-                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                    {renderFormattedMessage(msg.text, msg.role === 'user')}
                     
-                    <div className="flex items-center justify-between gap-3 mt-1.5 pt-1 border-t border-black/5">
+                    <div className="flex items-center justify-end mt-1 pt-0.5">
                       <span
                         className={`text-[10px] font-medium ${
-                          msg.role === 'user' ? 'text-amber-100' : 'text-slate-400'
+                          msg.role === 'user' ? 'text-amber-100/80' : 'text-slate-400'
                         }`}
                       >
                         {msg.timestamp}
                       </span>
-
-                      {/* Copy Button on Hover */}
-                      <button
-                        onClick={() => handleCopyText(msg.id, msg.text)}
-                        className={`opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-black/10 text-[10px] ${
-                          msg.role === 'user' ? 'text-amber-100' : 'text-slate-400'
-                        }`}
-                        title="Copy message"
-                      >
-                        {copiedId === msg.id ? (
-                          <Check className="w-3 h-3 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3 h-3" />
-                        )}
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -443,7 +445,10 @@ export default function ChatWidget({ initialOpen = false, inline = false }: Chat
                     {msg.options.map((option, optIdx) => (
                       <button
                         key={optIdx}
-                        onClick={() => handleSendMessage(option)}
+                        onClick={() => {
+                          handleSendMessage(option);
+                          setTimeout(() => inputRef.current?.focus(), 30);
+                        }}
                         disabled={isLoading}
                         className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-amber-500 hover:text-white text-slate-700 text-xs font-bold border border-slate-200 hover:border-amber-500 shadow-xs transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
                       >
@@ -486,8 +491,7 @@ export default function ChatWidget({ initialOpen = false, inline = false }: Chat
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder="Type your message..."
-                disabled={isLoading}
-                className="flex-1 bg-transparent text-sm text-slate-900 placeholder-slate-400 focus:outline-none disabled:opacity-50 py-1.5 font-medium"
+                className="flex-1 bg-transparent text-sm text-slate-900 placeholder-slate-400 focus:outline-none py-1.5 font-medium"
               />
               <button
                 type="submit"
@@ -501,13 +505,27 @@ export default function ChatWidget({ initialOpen = false, inline = false }: Chat
             <div className="flex justify-between items-center px-1.5 mt-2">
               <span className="text-[10px] text-slate-400 font-medium">Marketing And Publishing House LLC</span>
               <button
-                onClick={handleClearChat}
-                className="text-[10px] text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1"
+                onClick={() => setShowClearModal(true)}
+                className="text-[10px] text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw className="w-2.5 h-2.5" /> Clear History
               </button>
             </div>
           </div>
+
+          <ConfirmModal
+            isOpen={showClearModal}
+            onClose={() => setShowClearModal(false)}
+            onConfirm={() => {
+              handleClearChat();
+              setShowClearModal(false);
+            }}
+            title="Clear Chat History?"
+            message="Are you sure you want to reset this conversation? All ongoing messages will be cleared."
+            confirmText="Clear Chat"
+            cancelText="Cancel"
+            variant="warning"
+          />
         </div>
       )}
     </>
