@@ -26,6 +26,7 @@ interface Message {
 interface ChatWidgetProps {
   initialOpen?: boolean;
   inline?: boolean;
+  customSessionId?: string;
 }
 
 // Clean 3Knots Branded Consultant Avatar
@@ -112,7 +113,7 @@ export default function ChatWidget({
 
   // Initialize or restore session
   useEffect(() => {
-    let currentId = localStorage.getItem('mph_chat_session_id');
+    let currentId = customSessionId || localStorage.getItem('mph_chat_session_id');
     if (!currentId) {
       currentId = `web_user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       localStorage.setItem('mph_chat_session_id', currentId);

@@ -66,7 +66,7 @@ export function validateEmail(email: string): { isValid: boolean; cleanEmail?: s
  * Tool: Save or update lead details in MongoDB CRM
  */
 export const saveLeadInfoTool = tool(
-  async ({ fullName, email, phoneNumber, bookTopic, writingStage, notes }) => {
+  async ({ fullName, email, phoneNumber, bookTopic, writingStage, preferredContactTime, notes }) => {
     try {
       // 1. Strict Email Validation (if provided)
       let validEmail: string | undefined = undefined;
@@ -101,11 +101,11 @@ export const saveLeadInfoTool = tool(
       }
 
       // If neither valid email nor valid phone was provided, reject saving
-      if (!validEmail && !validPhone && !bookTopic && !writingStage) {
+      if (!validEmail && !validPhone && !bookTopic && !writingStage && !preferredContactTime) {
         return JSON.stringify({
           success: false,
           validationError: true,
-          error: 'Must provide at least a valid US phone number or valid email address.',
+          error: 'Must provide at least a valid US phone number, valid email, or preferred contact time.',
         });
       }
 
@@ -114,6 +114,9 @@ export const saveLeadInfoTool = tool(
       const names = (fullName || 'Prospective Author').trim().split(' ');
       const firstName = names[0] || 'Author';
       const lastName = names.slice(1).join(' ') || '';
+
+      const timeContext = preferredContactTime ? `Preferred Contact Time: ${preferredContactTime}. ` : '';
+      const fullNotes = `${timeContext}${notes || ''}`.trim() || 'Captured via Alex Chat Agent';
 
       // Upsert lead based on phone number or email
       let existingLead = null;
@@ -130,6 +133,9 @@ export const saveLeadInfoTool = tool(
         if (validPhone) existingLead.phoneNumber = validPhone;
         if (bookTopic) existingLead.bookTopic = bookTopic;
         if (writingStage) existingLead.writingStage = writingStage;
+        if (preferredContactTime) {
+          existingLead.context = `${timeContext}${existingLead.context || ''}`.trim();
+        }
         if (notes) {
           existingLead.context = existingLead.context ? `${existingLead.context}\n${notes}` : notes;
         }
@@ -139,7 +145,7 @@ export const saveLeadInfoTool = tool(
           success: true, 
           message: 'Lead updated successfully', 
           leadId: existingLead._id,
-          savedDetails: { email: validEmail, phoneNumber: validPhone, firstName }
+          savedDetails: { email: validEmail, phoneNumber: validPhone, firstName, preferredContactTime }
         });
       } else {
         const newLead = await LeadModel.create({
@@ -149,7 +155,7 @@ export const saveLeadInfoTool = tool(
           email: validEmail,
           bookTopic: bookTopic || '',
           writingStage: writingStage || 'idea',
-          context: notes || 'Captured via Alex Chat Agent',
+          context: fullNotes,
           source: 'chat_agent',
           status: 'new',
         });
@@ -158,7 +164,7 @@ export const saveLeadInfoTool = tool(
           success: true, 
           message: 'Lead created successfully', 
           leadId: newLead._id,
-          savedDetails: { email: validEmail, phoneNumber: validPhone, firstName }
+          savedDetails: { email: validEmail, phoneNumber: validPhone, firstName, preferredContactTime }
         });
       }
     } catch (error: any) {
@@ -175,6 +181,7 @@ export const saveLeadInfoTool = tool(
       phoneNumber: z.string().optional().describe('Valid 10-digit US phone or mobile number (NANP 10 digits)'),
       bookTopic: z.string().optional().describe('Book genre, concept, title, or topic'),
       writingStage: z.string().optional().describe('Writing stage: idea, drafting, completed manuscript, or published'),
+      preferredContactTime: z.string().optional().describe('Preferred day or time for Elizabeth to call the author (e.g. "tomorrow 2pm EST", "Friday morning")'),
       notes: z.string().optional().describe('Additional notes or service gaps discussed'),
     }),
   }
