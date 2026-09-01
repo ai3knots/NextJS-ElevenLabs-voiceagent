@@ -16,6 +16,7 @@ export interface IChatLog extends Document {
   chatSummary?: string;
   chatErrorReason?: string;
   chatOutcome?: string;
+  conversationStage?: 'INITIAL_ENGAGEMENT' | 'QUALIFYING' | 'VALUE_CREATION' | 'CONTACT_CAPTURE' | 'PLANS' | 'SCHEDULING';
   followUpRequired?: boolean;
   rawWebhookPayload?: any;
   createdAt: Date;
@@ -39,6 +40,7 @@ const ChatLogSchema: Schema = new Schema(
     chatSummary: { type: String },
     chatErrorReason: { type: String },
     chatOutcome: { type: String },
+    conversationStage: { type: String, enum: ['INITIAL_ENGAGEMENT', 'QUALIFYING', 'VALUE_CREATION', 'CONTACT_CAPTURE', 'PLANS', 'SCHEDULING'], default: 'INITIAL_ENGAGEMENT' },
     followUpRequired: { type: Boolean, default: false },
     rawWebhookPayload: { type: Schema.Types.Mixed },
   },

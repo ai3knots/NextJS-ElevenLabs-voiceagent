@@ -137,51 +137,7 @@ export default function ChatWidget({
       }
     }
     
-    // Initial opening sequence (Turn 1: Immediate)
-    const initialGreeting: Message = {
-      id: `init_${Date.now()}_1`,
-      role: 'agent',
-      text: "Hi there! How are you doing today?",
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    setMessages([initialGreeting]);
-
-    // Turn 2: Follow-up after 5 seconds of silence
-    addSequenceTimer(() => {
-      if (!hasUserRepliedRef.current) {
-        const secondMsg: Message = {
-          id: `init_${Date.now()}_2`,
-          role: 'agent',
-          text: "Are you looking to get your book published?",
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          options: ["Yes", "No", "Maybe"]
-        };
-        setMessages((prev) => [...prev, secondMsg]);
-      }
-    }, 5000);
-
-    // Turn 3: Follow-up after further 10 seconds (15s total) of silence
-    addSequenceTimer(() => {
-      if (!hasUserRepliedRef.current) {
-        const thirdMsg: Message = {
-          id: `init_${Date.now()}_3`,
-          role: 'agent',
-          text: "Hi!\nWe are in Atlanta, Georgia!\nAre you looking for the following service:",
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          options: [
-            "Book Publishing",
-            "Book Marketing",
-            "Formatting",
-            "Professional Editing",
-            "Proofreading",
-            "Ghostwriting",
-            "Cover Art Design"
-          ]
-        };
-        setMessages((prev) => [...prev, thirdMsg]);
-      }
-    }, 15000);
+    // No initial automated messages; wait for user to start the conversation
 
     return () => {
       clearAllSequenceTimers();
@@ -245,7 +201,24 @@ export default function ChatWidget({
 
       const data = await res.json();
 
-      if (data.reply) {
+      // Add a baseline artificial typing delay so the response never feels "instant"
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+
+      if (data.replies && Array.isArray(data.replies) && data.replies.length > 0) {
+        for (let i = 0; i < data.replies.length; i++) {
+          if (i > 0) {
+            // Wait before showing the next message to simulate natural typing
+            await new Promise((resolve) => setTimeout(resolve, 1800));
+          }
+          const agentMsg: Message = {
+            id: `reply_${Date.now()}_${i}`,
+            role: 'agent',
+            text: data.replies[i],
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+          setMessages((prev) => [...prev, agentMsg]);
+        }
+      } else if (data.reply) {
         const agentMsg: Message = {
           id: `reply_${Date.now()}`,
           role: 'agent',
@@ -279,55 +252,7 @@ export default function ChatWidget({
     localStorage.removeItem(`mph_chat_msgs_${sessionId}`);
     setSessionId(newId);
     
-    // Reset to initial sequence
-    const resetGreeting: Message = {
-      id: `init_${Date.now()}_1`,
-      role: 'agent',
-      text: "Hi there! How are you doing today?",
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    setMessages([resetGreeting]);
-
-    // Re-arm 5s timer
-    addSequenceTimer(() => {
-      if (!hasUserRepliedRef.current) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `init_${Date.now()}_2`,
-            role: 'agent',
-            text: "Are you looking to get your book published?",
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            options: ["Yes", "No", "Maybe"]
-          }
-        ]);
-      }
-    }, 5000);
-
-    // Re-arm 15s timer
-    addSequenceTimer(() => {
-      if (!hasUserRepliedRef.current) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `init_${Date.now()}_3`,
-            role: 'agent',
-            text: "Hi!\nWe are in Atlanta, Georgia!\nAre you looking for the following service:",
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            options: [
-              "Book Publishing",
-              "Book Marketing",
-              "Formatting",
-              "Professional Editing",
-              "Proofreading",
-              "Ghostwriting",
-              "Cover Art Design"
-            ]
-          }
-        ]);
-      }
-    }, 15000);
+    setMessages([]);
 
     toast.success('Chat history cleared!');
   };

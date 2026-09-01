@@ -17,6 +17,7 @@ export interface ChatAgentOptions {
 
 export interface ChatAgentResponse {
   reply: string;
+  replies?: string[];
   sessionId: string;
   platform: string;
   chatLogId?: string;
@@ -60,11 +61,14 @@ export async function executeChatAgent({
   console.log(`🤖 [LangGraph Agent] Executing turn for Session [${sessionId}] (${platform})...`);
   const graphResult = await alexChatGraph.invoke({
     messages: pastMessages,
+    conversationStage: chatLog?.conversationStage || 'GREETING',
   });
+  
+  const newStage = graphResult.conversationStage || 'GREETING';
 
   // 4. Extract the final AI response
   const resultMessages = graphResult.messages;
-  let finalReply = "Thanks for reaching out! What kind of book are you working on?";
+  let finalReply = "Hello! Are you looking for publishing services?";
 
   for (let i = resultMessages.length - 1; i >= 0; i--) {
     const msg = resultMessages[i];
@@ -81,16 +85,20 @@ export async function executeChatAgent({
     { role: 'agent', content: finalReply, timestamp: now },
   ];
 
+  const isFirstMessage = !chatLog || (chatLog.messages && chatLog.messages.length === 0);
+
   if (!chatLog) {
     chatLog = new ChatLogModel({
       senderPsid: sessionId,
       platform: platform,
       chatStatus: 'completed',
       messages: newTurns,
+      conversationStage: newStage,
     });
   } else {
     chatLog.messages = chatLog.messages || [];
     chatLog.messages.push(...newTurns);
+    chatLog.conversationStage = newStage;
   }
 
   const allMsgs = chatLog.messages || [];
@@ -123,8 +131,15 @@ export async function executeChatAgent({
   chatLog.updatedAt = now;
   await chatLog.save();
 
+  let finalReplies: string[] = [];
+  if (isFirstMessage) {
+    finalReplies.push("Hey this is Alex, hope you are doing good.");
+  }
+  finalReplies.push(finalReply);
+
   return {
     reply: finalReply,
+    replies: finalReplies,
     sessionId,
     platform,
     chatLogId: chatLog._id.toString(),

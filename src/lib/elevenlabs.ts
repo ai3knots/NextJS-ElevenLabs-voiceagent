@@ -17,6 +17,9 @@ export async function triggerOutboundCall(
   agentId?: string,
   agentPhoneNumberId?: string
 ) {
+  if (!API_KEY) {
+    return { success: false, error: 'ELEVENLABS_API_KEY is not configured.' };
+  }
   try {
     const targetPhoneId = agentPhoneNumberId || process.env.AGENT_PHONE_NUMBER_ID;
     
@@ -57,6 +60,7 @@ export async function triggerOutboundCall(
 }
 
 export async function getConversationDetails(conversationId: string) {
+  if (!API_KEY) return null;
   try {
     const response = await client.get(`/v1/convai/conversations/${conversationId}`);
     return response.data;
@@ -67,6 +71,7 @@ export async function getConversationDetails(conversationId: string) {
 }
 
 export async function getAgentDetails(agentId: string) {
+  if (!API_KEY) return null;
   try {
     const response = await client.get(`/v1/convai/agents/${agentId}`);
     return response.data;
@@ -77,6 +82,7 @@ export async function getAgentDetails(agentId: string) {
 }
 
 export async function getAgents() {
+  if (!API_KEY) return { agents: [] };
   try {
     const response = await client.get(`/v1/convai/agents`);
     return response.data;
@@ -87,6 +93,7 @@ export async function getAgents() {
 }
 
 export async function updateAgentDetails(agentId: string, payload: any) {
+  if (!API_KEY) return false;
   try {
     // We typically use PATCH for updating agent config, depending on ElevenLabs API specs.
     // The previous laravel code seemed to just pass payload.
@@ -99,6 +106,7 @@ export async function updateAgentDetails(agentId: string, payload: any) {
 }
 
 export async function getConversations(limit: number = 50, agentId?: string) {
+  if (!API_KEY) return { conversations: [] };
   try {
     const response = await client.get(`/v1/convai/conversations?agent_id=${agentId || AGENT_ID}&page_size=${limit}`);
     return response.data;
@@ -109,6 +117,7 @@ export async function getConversations(limit: number = 50, agentId?: string) {
 }
 
 export async function getBatchCalls(agentId?: string) {
+  if (!API_KEY) return [];
   try {
     const targetAgentId = agentId || AGENT_ID;
     const url = targetAgentId 
@@ -124,6 +133,7 @@ export async function getBatchCalls(agentId?: string) {
 }
 
 export async function getBatchCallDetails(batchId: string) {
+  if (!API_KEY) return null;
   try {
     const response = await client.get(`/v1/convai/batch-calling/${batchId}`);
     return response.data;
@@ -144,6 +154,9 @@ export async function submitBatchCall(payload: {
     };
   }>;
 }) {
+  if (!API_KEY) {
+    return { success: false, error: 'ELEVENLABS_API_KEY is not configured.' };
+  }
   try {
     const response = await client.post('/v1/convai/batch-calling/submit', {
       agent_id: payload.agent_id || AGENT_ID,
@@ -165,6 +178,7 @@ export async function submitBatchCall(payload: {
 }
 
 export async function getPhoneNumbers() {
+  if (!API_KEY) return [];
   try {
     const response = await client.get('/v1/convai/phone-numbers');
     return response.data?.phone_numbers || response.data || [];
@@ -175,6 +189,7 @@ export async function getPhoneNumbers() {
 }
 
 export async function runConversationAnalysis(conversationId: string) {
+  if (!API_KEY) return null;
   try {
     const response = await client.post(`/v1/convai/conversations/${conversationId}/analysis/run`);
     return response.data;

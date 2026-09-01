@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       reply: result.reply,
+      replies: result.replies,
       sessionId: result.sessionId,
       chatLogId: result.chatLogId,
     });
