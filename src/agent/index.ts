@@ -1,27 +1,11 @@
 import connectDB from '@/lib/mongodb';
-import ChatLogModel, { IChatMessage } from '@/models/ChatLog';
+import ChatLogModel, { IChatLog, IChatMessage } from '@/models/ChatLog';
 import LeadModel from '@/models/Lead';
 import { alexChatGraph } from './graph';
 import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
+import type { ChatAgentOptions, ChatAgentResponse } from '@/types/agent';
 
-export interface ChatAgentOptions {
-  sessionId: string;
-  userMessage: string;
-  platform?: 'web' | 'messenger';
-  userProfile?: {
-    firstName?: string;
-    lastName?: string;
-    profilePic?: string;
-  };
-}
-
-export interface ChatAgentResponse {
-  reply: string;
-  replies?: string[];
-  sessionId: string;
-  platform: string;
-  chatLogId?: string;
-}
+export type { ChatAgentOptions, ChatAgentResponse };
 
 /**
  * High-level entrypoint for the Alex LangGraph Chat Agent
@@ -61,10 +45,10 @@ export async function executeChatAgent({
   console.log(`🤖 [LangGraph Agent] Executing turn for Session [${sessionId}] (${platform})...`);
   const graphResult = await alexChatGraph.invoke({
     messages: pastMessages,
-    conversationStage: chatLog?.conversationStage || 'GREETING',
+    conversationStage: chatLog?.conversationStage || 'INITIAL_ENGAGEMENT',
   });
   
-  const newStage = graphResult.conversationStage || 'GREETING';
+  const newStage = (graphResult.conversationStage || 'INITIAL_ENGAGEMENT') as IChatLog['conversationStage'];
 
   // 4. Extract the final AI response
   const resultMessages = graphResult.messages;
