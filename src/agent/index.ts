@@ -117,7 +117,7 @@ export async function executeChatAgent({
 
   let finalReplies: string[] = [];
   if (isFirstMessage) {
-    finalReplies.push("Hey this is Alex, hope you are doing good.");
+    finalReplies.push("Hey this is Emma, hope you are doing good.");
   }
   finalReplies.push(finalReply);
 

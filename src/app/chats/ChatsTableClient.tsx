@@ -33,7 +33,7 @@ export default function ChatsTableClient({ chats }: { chats: any[] }) {
         {lines.map((line, idx) => {
           if (!line.trim()) return null;
           
-          const isAI = line.toLowerCase().startsWith('ai agent:') || line.toLowerCase().startsWith('ai:') || line.toLowerCase().startsWith('alex');
+          const isAI = line.toLowerCase().startsWith('ai agent:') || line.toLowerCase().startsWith('ai:') || line.toLowerCase().startsWith('alex') || line.toLowerCase().startsWith('emma');
           const isVisitor = line.toLowerCase().startsWith('visitor:') || line.toLowerCase().startsWith('user:') || line.toLowerCase().startsWith('customer:');
           
           if (isAI || isVisitor) {

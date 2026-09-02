@@ -40,10 +40,10 @@ export default function ChatAgentPage() {
                 3Knots Digital • LangGraph + Gemini 3.5 Flash-Lite
               </div>
               <h1 className="text-3xl lg:text-4xl font-extrabold text-white tracking-tight">
-                Alex • AI Author Advisor
+                Emma • AI Author Advisor
               </h1>
               <p className="text-slate-400 text-sm max-w-2xl leading-relaxed">
-                Test and interact with Alex, your stateful chat agent for Marketing And Publishing House LLC. 
+                Test and interact with Emma, your stateful chat agent for Marketing And Publishing House LLC. 
                 Trained for natural lead qualification, the 6-step publishing process, pricing guidance, and automatic CRM lead capture.
               </p>
             </div>

@@ -41,7 +41,7 @@ export async function generateChatSummaryAction(chatId: string) {
 
     // Format full transcript for LLM
     const transcriptText = chat.messages
-      .map((m: any) => `${m.role === "user" ? "Customer" : "Alex (MPH Advisor)"}: ${m.content}`)
+      .map((m: any) => `${m.role === "user" ? "Customer" : "Emma (MPH Advisor)"}: ${m.content}`)
       .join("\n");
 
     const llm = new ChatGoogleGenerativeAI({
@@ -51,7 +51,7 @@ export async function generateChatSummaryAction(chatId: string) {
     });
 
     const prompt = `You are an expert CRM Intelligence Analyst for Marketing And Publishing House LLC (MPH).
-Analyze this chat transcript between a website visitor / author and our chat consultant Alex.
+Analyze this chat transcript between a website visitor / author and our chat consultant Emma.
 
 Chat Transcript:
 ${transcriptText}

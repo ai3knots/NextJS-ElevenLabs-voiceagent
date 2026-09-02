@@ -30,18 +30,18 @@ interface ChatWidgetProps {
 }
 
 // Clean 3Knots Branded Consultant Avatar
-const AlexAvatar = ({ size = 'md' }: { size?: 'sm' | 'md' }) => {
+const AgentAvatar = ({ size = 'md' }: { size?: 'sm' | 'md' }) => {
   if (size === 'sm') {
     return (
       <div className="w-8 h-8 rounded-full flex-shrink-0 bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 flex items-center justify-center text-white text-xs font-black shadow-md mt-0.5 border border-amber-300/40 tracking-wider">
-        <span>A</span>
+        <span>E</span>
       </div>
     );
   }
 
   return (
     <div className="w-10 h-10 rounded-full flex-shrink-0 bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 flex items-center justify-center text-white text-sm font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] ring-2 ring-amber-400/50 tracking-wider">
-      <span>AL</span>
+      <span>EM</span>
     </div>
   );
 };
@@ -269,15 +269,15 @@ export default function ChatWidget({
         <button
           onClick={() => setIsOpen(true)}
           className="fixed bottom-6 right-6 z-50 group flex items-center gap-3 pl-3 pr-5 py-3 rounded-full bg-[#090D14] text-white shadow-[0_10px_30px_rgba(245,158,11,0.25)] hover:shadow-[0_12px_35px_rgba(245,158,11,0.4)] hover:scale-[1.03] transition-all duration-300 border border-amber-500/40"
-          aria-label="Open Alex Chat"
+          aria-label="Open Emma Chat"
         >
           <div className="relative">
-            <AlexAvatar size="md" />
+            <AgentAvatar size="md" />
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full ring-2 ring-slate-900 animate-pulse"></span>
           </div>
           <div className="flex flex-col text-left">
             <span className="text-xs font-extrabold text-white tracking-tight flex items-center gap-1.5">
-              Alex <span className="text-[10px] font-bold text-amber-400 bg-amber-500/20 px-1.5 py-0.2 rounded border border-amber-400/30">Advisor</span>
+              Emma <span className="text-[10px] font-bold text-amber-400 bg-amber-500/20 px-1.5 py-0.2 rounded border border-amber-400/30">Advisor</span>
             </span>
             <span className="text-[11px] text-amber-200/70 font-medium">3Knots Digital • Online</span>
           </div>
@@ -291,12 +291,12 @@ export default function ChatWidget({
           <div className="bg-gradient-to-r from-[#090D14] via-[#141B26] to-[#090D14] text-white px-5 py-4 flex items-center justify-between border-b border-amber-500/30 shadow-sm flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <AlexAvatar size="md" />
+                <AgentAvatar size="md" />
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full ring-2 ring-slate-900"></span>
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-sm text-white tracking-tight">Alex</h3>
+                  <h3 className="font-extrabold text-sm text-white tracking-tight">Emma</h3>
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-400/30">
                     <Sparkles className="w-2.5 h-2.5 mr-1 text-amber-400" /> 3Knots Advisor
                   </span>
@@ -337,7 +337,7 @@ export default function ChatWidget({
                   }`}
                 >
                   {msg.role === 'agent' ? (
-                    <AlexAvatar size="sm" />
+                    <AgentAvatar size="sm" />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-slate-900 flex-shrink-0 flex items-center justify-center text-white shadow-sm mt-0.5 ring-2 ring-slate-800">
                       <User className="w-4 h-4 text-amber-400" />
@@ -389,12 +389,12 @@ export default function ChatWidget({
             {/* Typing Indicator */}
             {isLoading && (
               <div className="flex items-start gap-2.5">
-                <AlexAvatar size="sm" />
+                <AgentAvatar size="sm" />
                 <div className="bg-white border border-slate-200/80 rounded-2xl rounded-tl-xs px-4 py-3 shadow-sm flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce"></span>
                   <span className="w-2 h-2 rounded-full bg-orange-500 animate-bounce [animation-delay:0.2s]"></span>
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-bounce [animation-delay:0.4s]"></span>
-                  <span className="text-[11px] text-slate-400 font-medium ml-1.5">Alex is typing...</span>
+                  <span className="text-[11px] text-slate-400 font-medium ml-1.5">Emma is typing...</span>
                 </div>
               </div>
             )}

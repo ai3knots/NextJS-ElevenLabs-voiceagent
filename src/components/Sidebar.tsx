@@ -13,7 +13,7 @@ export default function Sidebar() {
     { href: "/leads/create", label: "New Lead", icon: UserPlus },
     { href: "/conversations", label: "Voice Calls", icon: MessageSquare },
     { href: "/chats", label: "Chats", icon: MessageCircle },
-    { href: "/chat-agent", label: "Alex Chat Agent", icon: Sparkles },
+    { href: "/chat-agent", label: "Emma Chat Agent", icon: Sparkles },
     { href: "/batches", label: "Batches", icon: Layers },
   ];
 

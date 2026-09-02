@@ -96,7 +96,7 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
   const handleCopyTranscript = () => {
     if (!chat.messages || chat.messages.length === 0) return;
     const text = chat.messages
-      .map((m: any) => `[${new Date(m.timestamp || chat.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}] ${m.role === 'user' ? 'Customer' : 'Alex (MPH Advisor)'}: ${m.content}`)
+      .map((m: any) => `[${new Date(m.timestamp || chat.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}] ${m.role === 'user' ? 'Customer' : 'Emma (MPH Advisor)'}: ${m.content}`)
       .join('\n\n');
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -384,7 +384,7 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
                         </div>
                       ) : (
                         <div className="w-8 h-8 rounded-full flex-shrink-0 bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 flex items-center justify-center text-white text-xs font-black shadow-md mt-0.5 border border-amber-300/40 tracking-wider">
-                          <span>A</span>
+                          <span>E</span>
                         </div>
                       )}
 
@@ -398,7 +398,7 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
                       >
                         <div className="flex items-center justify-between gap-4 mb-1">
                           <span className={`text-[10px] font-bold ${isUser ? 'text-amber-100' : 'text-slate-400'} uppercase tracking-wider`}>
-                            {isUser ? (authorName || "Customer") : "Alex (Author Advisor)"}
+                            {isUser ? (authorName || "Customer") : "Emma (Author Advisor)"}
                           </span>
                           {timestamp && (
                             <span className={`text-[10px] font-medium ${isUser ? 'text-amber-200/80' : 'text-slate-400'}`}>
