@@ -52,7 +52,7 @@ function renderFormattedMessage(text: string, isUser: boolean) {
   const lines = text.split('\n');
 
   return (
-    <div className="space-y-1 leading-relaxed">
+    <div className="space-y-1 leading-relaxed break-words">
       {lines.map((line, lineIdx) => {
         // Clean leading asterisks or dashes into neat bullet point dots
         const cleanBulletLine = line.replace(/^[\*\-]\s+/, '• ');
