@@ -112,8 +112,13 @@ export default function ChatsTableClient({ chats }: { chats: any[] }) {
                           <span className="font-bold text-slate-900 truncate">
                             {chat.leadId?.firstName ? `${chat.leadId.firstName} ${chat.leadId.lastName || ''}`.trim() : "Anonymous Visitor"}
                           </span>
-                          <span className="text-[0.8rem] text-slate-500 truncate">
-                            {chat.platform === 'messenger' ? 'Meta Messenger' : 'Web Chat'}
+                          <span className="text-[0.8rem] text-slate-500 truncate flex items-center gap-1.5 mt-0.5">
+                            <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-bold text-slate-600">
+                              {chat.platform === 'messenger' ? 'Meta Messenger' : 'Web Chat'}
+                            </span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${chat.chatType === 'Live' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                              {chat.chatType === 'Live' ? 'Live Chat' : 'SMM Chat'}
+                            </span>
                           </span>
                         </div>
                       </td>

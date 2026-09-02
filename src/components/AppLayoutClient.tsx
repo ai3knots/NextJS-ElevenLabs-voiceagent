@@ -27,7 +27,7 @@ export default function AppLayoutClient({
 
   // Determine active widget behavior
   const isChatDetailsPage = pathname?.startsWith('/chats/') && pathname !== '/chats';
-  const isChatPage = pathname === '/chats' || pathname === '/chat-agent';
+  const isChatPage = pathname === '/chats' || pathname === '/chat-agent' || pathname === '/live-chat';
 
   return (
     <>
@@ -44,8 +44,8 @@ export default function AppLayoutClient({
         <main className="p-8 max-w-[1300px] w-full mx-auto">{children}</main>
       </div>
 
-      {/* No floating widget on chat details page; ChatWidget on /chats & /chat-agent; ConvaiWidget elsewhere */}
-      {isChatDetailsPage ? null : isChatPage ? (
+      {/* No floating widget on chat details page or live-chat page; ChatWidget on /chats & /chat-agent; ConvaiWidget elsewhere */}
+      {isChatDetailsPage || pathname === '/live-chat' ? null : isChatPage ? (
         <ChatWidget />
       ) : (
         <ConvaiWidget agentId={currentAgentId} />

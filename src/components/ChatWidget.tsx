@@ -27,6 +27,8 @@ interface ChatWidgetProps {
   initialOpen?: boolean;
   inline?: boolean;
   customSessionId?: string;
+  apiEndpoint?: string;
+  proactive?: boolean;
 }
 
 // Clean 3Knots Branded Consultant Avatar
@@ -84,7 +86,9 @@ function renderFormattedMessage(text: string, isUser: boolean) {
 export default function ChatWidget({ 
   initialOpen = false, 
   inline = false,
-  customSessionId 
+  customSessionId,
+  apiEndpoint = '/api/chat',
+  proactive = false
 }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(initialOpen || inline);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -137,8 +141,43 @@ export default function ChatWidget({
       }
     }
     
-    // No initial automated messages; wait for user to start the conversation
+    // Automated sequence logic for proactive engagement
+    if (proactive && (!saved || Array.isArray(JSON.parse(saved || '[]')) && JSON.parse(saved || '[]').length === 0)) {
+      // Step 1: 0s
+      addSequenceTimer(() => {
+        if (hasUserRepliedRef.current) return;
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'agent',
+          text: "Hi there! How are you doing today?",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }]);
+      }, 500);
 
+      // Step 2: 3s
+      addSequenceTimer(() => {
+        if (hasUserRepliedRef.current) return;
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          role: 'agent',
+          text: "Are you looking to get your book published?",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          options: ['Yes', 'No', 'Maybe']
+        }]);
+      }, 3500);
+
+      // Step 3: 90s
+      addSequenceTimer(() => {
+        if (hasUserRepliedRef.current) return;
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 2).toString(),
+          role: 'agent',
+          text: "Is it a short story\na children's or fiction book?",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }]);
+      }, 90000);
+    }
+    
     return () => {
       clearAllSequenceTimers();
     };
@@ -189,7 +228,7 @@ export default function ChatWidget({
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
