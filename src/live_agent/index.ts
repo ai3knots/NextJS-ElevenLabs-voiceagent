@@ -91,7 +91,7 @@ export async function executeChatAgent({
 
   // Check if contact info was captured in this conversation
   const transcriptLower = allMsgs.map(m => m.content).join(' ').toLowerCase();
-  const hasPhone = /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/.test(transcriptLower);
+  const hasPhone = /\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}/.test(transcriptLower);
   const hasEmail = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(transcriptLower);
 
   if (hasPhone || hasEmail) {

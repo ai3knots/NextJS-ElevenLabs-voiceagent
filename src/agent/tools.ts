@@ -3,6 +3,7 @@ import { z } from 'zod';
 import connectDB from '@/lib/mongodb';
 import LeadModel from '@/models/Lead';
 import { triggerOutboundCall } from '@/lib/elevenlabs';
+import { validateLeadContact } from '@/lib/leadValidator';
 
 /**
  * Strict US Phone Validator (NANP: 10 digits, area code 2-9, exchange code 2-9)
@@ -98,51 +99,32 @@ export function validateEmail(email: string): { isValid: boolean; cleanEmail?: s
 }
 
 /**
- * Tool: Save or update lead details in MongoDB CRM
+ * Tool: Save or update lead details in MongoDB CRM with deterministic validation
  */
 export const saveLeadInfoTool = tool(
   async ({ fullName, email, phoneNumber, bookTopic, writingStage, preferredContactTime, notes }) => {
     try {
-      // 1. Strict Email Validation (if provided)
-      let validEmail: string | undefined = undefined;
-      if (email) {
-        const emailCheck = validateEmail(email);
-        if (!emailCheck.isValid) {
-          console.warn(`⚠️ [Agent Tool Validation] Rejected invalid email: ${email}`);
-          return JSON.stringify({ 
-            success: false, 
-            validationError: true, 
-            field: 'email',
-            error: emailCheck.error 
-          });
-        }
-        validEmail = emailCheck.cleanEmail;
-      }
+      // Run deterministic validation on contact details
+      const validation = await validateLeadContact({
+        name: fullName,
+        email: email,
+        phone: phoneNumber,
+      });
 
-      // 2. Strict US Phone Validation (if provided)
-      let validPhone: string | undefined = undefined;
-      if (phoneNumber) {
-        const phoneCheck = validateUSPhoneNumber(phoneNumber);
-        if (!phoneCheck.isValid) {
-          console.warn(`⚠️ [Agent Tool Validation] Rejected invalid US phone: ${phoneNumber}`);
-          return JSON.stringify({ 
-            success: false, 
-            validationError: true, 
-            field: 'phoneNumber',
-            error: phoneCheck.error 
-          });
-        }
-        validPhone = phoneCheck.cleanPhone;
-      }
-
-      // If neither valid email nor valid phone was provided, reject saving
-      if (!validEmail && !validPhone && !bookTopic && !writingStage && !preferredContactTime) {
+      if (!validation.isValid) {
+        console.warn(`⚠️ [Agent Tool Validation] Lead contact details rejected:`, validation.errors);
         return JSON.stringify({
           success: false,
           validationError: true,
-          error: 'Must provide at least a valid US phone number, valid email, or preferred contact time.',
+          valid: false,
+          errors: validation.errors,
+          message: `The contact information could not be verified: ${validation.errors.join(' ')} Please request the author to provide their corrected contact details.`
         });
       }
+
+      const validEmail = validation.cleanEmail;
+      const validPhone = validation.cleanPhone;
+
 
       await connectDB();
 
@@ -208,15 +190,15 @@ export const saveLeadInfoTool = tool(
     }
   },
   {
-    name: 'save_lead_info',
-    description: 'Saves or updates author details in the CRM. Validates that email is a valid email (e.g. name@domain.com) and phone is a valid 10-digit US number (no international/foreign numbers).',
+    name: 'validate_and_save_lead',
+    description: 'Validates and saves the author contact details (name, email, phone number). Performs deterministic anti-spam checks, verifies email domain MX servers, and checks for valid phone format. MUST be called whenever the user provides contact information during contact capture.',
     schema: z.object({
-      fullName: z.string().optional().describe('Full name of the author/visitor'),
-      email: z.string().optional().describe('Valid email address (e.g. user@gmail.com)'),
-      phoneNumber: z.string().optional().describe('Valid 10-digit US phone or mobile number (NANP 10 digits)'),
+      fullName: z.string().describe('Full name of the author/visitor'),
+      email: z.string().describe('Valid email address (e.g. user@gmail.com)'),
+      phoneNumber: z.string().describe('Valid phone or mobile number (US or international format)'),
       bookTopic: z.string().optional().describe('Book genre, concept, title, or topic'),
       writingStage: z.string().optional().describe('Writing stage: idea, drafting, completed manuscript, or published'),
-      preferredContactTime: z.string().optional().describe('Preferred day or time for Elizabeth to call the author (e.g. "tomorrow 2pm EST", "Friday morning")'),
+      preferredContactTime: z.string().optional().describe('Preferred day or time for a consultant to call'),
       notes: z.string().optional().describe('Additional notes or service gaps discussed'),
     }),
   }
@@ -311,7 +293,7 @@ export const sendEmailTool = tool(
   },
   {
     name: 'send_email_proposal',
-    description: 'Sends the official publishing proposal and plans via email to the author. MUST ONLY be called if the author explicitly asks for the plans/proposal to be sent to their email. Prices are hidden by default.',
+    description: 'STRICTLY PASSIVE TOOL: Sends the publishing proposal and plans via email to the author. You must NEVER suggest, ask, or offer to email plans to the author. MUST ONLY be called if the author explicitly commands you to email them (e.g., "email me the plans", "send it to my email"). Prices are hidden by default.',
     schema: z.object({
       emailAddress: z.string().describe('The destination email address to send the proposal to'),
       authorName: z.string().optional().describe('First or full name of the author'),
