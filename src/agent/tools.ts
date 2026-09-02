@@ -274,5 +274,50 @@ export const triggerOutboundCallTool = tool(
   }
 );
 
-export const AGENT_TOOLS = [saveLeadInfoTool, triggerOutboundCallTool];
+export const sendEmailTool = tool(
+  async ({ emailAddress, authorName }) => {
+    try {
+      console.log(`📧 [Agent Tool] Triggering email proposal for: ${authorName || 'Author'} at ${emailAddress}`);
+
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+
+      const response = await fetch(`${baseUrl}/api/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: emailAddress,
+          name: authorName,
+          price_visible: false // Hidden by default when sent via agent
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        return JSON.stringify({
+          success: true,
+          message: `Email proposal sent successfully to ${emailAddress} (with prices hidden)`,
+        });
+      } else {
+        return JSON.stringify({
+          success: false,
+          error: data.message || 'Failed to send email proposal',
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ [Agent Tool] Error sending email:', error.message);
+      return JSON.stringify({ success: false, error: error.message });
+    }
+  },
+  {
+    name: 'send_email_proposal',
+    description: 'Sends the official publishing proposal and plans via email to the author. MUST ONLY be called if the author explicitly asks for the plans/proposal to be sent to their email. Prices are hidden by default.',
+    schema: z.object({
+      emailAddress: z.string().describe('The destination email address to send the proposal to'),
+      authorName: z.string().optional().describe('First or full name of the author'),
+    }),
+  }
+);
+
+export const AGENT_TOOLS = [saveLeadInfoTool, triggerOutboundCallTool, sendEmailTool];
 

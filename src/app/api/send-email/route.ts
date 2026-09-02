@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 /**
  * Generates a luxury, high-converting HTML email template for book publishing proposals.
  */
-function generateExecutiveProposalHtml(clientName: string, refId?: string): string {
+function generateExecutiveProposalHtml(clientName: string, refId?: string, priceVisible: boolean = true): string {
   const year = new Date().getFullYear();
   const name = clientName && clientName.trim() ? clientName.trim() : 'Author';
   const refCode = refId || ('MPH-' + Date.now().toString(36).toUpperCase());
@@ -176,9 +176,11 @@ function generateExecutiveProposalHtml(clientName: string, refId?: string): stri
                         <h4 style="margin: 0; color: #ffffff; font-size: 17px; font-weight: 800;">Global Publishing Plan</h4>
                       </td>
                       <td align="right">
+                        ${priceVisible ? `
                         <span style="background: #f59e0b; color: #000000; font-weight: 900; font-size: 16px; padding: 4px 12px; border-radius: 16px;">
                           $1,799 <span style="font-size: 11px; font-weight: 700;">(One-Time Fee)</span>
                         </span>
+                        ` : ''}
                       </td>
                     </tr>
                   </table>
@@ -197,9 +199,11 @@ function generateExecutiveProposalHtml(clientName: string, refId?: string): stri
                         <h4 style="margin: 0; color: #1e40af; font-size: 16px; font-weight: 800;">Nationwide Publishing Plan</h4>
                       </td>
                       <td align="right">
+                        ${priceVisible ? `
                         <span style="background: #dbeafe; color: #1e40af; font-weight: 800; font-size: 15px; padding: 3px 10px; border-radius: 16px; border: 1px solid #93c5fd;">
                           $999 <span style="font-size: 11px; font-weight: 500;">(One-Time Fee)</span>
                         </span>
+                        ` : ''}
                       </td>
                     </tr>
                   </table>
@@ -218,9 +222,11 @@ function generateExecutiveProposalHtml(clientName: string, refId?: string): stri
                         <h4 style="margin: 0; color: #0b0f19; font-size: 16px; font-weight: 800;">Kickstarter Publishing Plan</h4>
                       </td>
                       <td align="right">
+                        ${priceVisible ? `
                         <span style="background: #ecfdf5; color: #047857; font-weight: 800; font-size: 15px; padding: 3px 10px; border-radius: 16px; border: 1px solid #a7f3d0;">
                           $699 <span style="font-size: 11px; font-weight: 500;">(One-Time Fee)</span>
                         </span>
+                        ` : ''}
                       </td>
                     </tr>
                   </table>
@@ -295,7 +301,7 @@ export async function POST(request: Request) {
   try {
     // 1. Get data from the request
     const body = await request.json();
-    const { to, from, subject, message, name } = body;
+    const { to, from, subject, message, name, price_visible = true } = body;
 
     if (!to) {
       return NextResponse.json(
@@ -336,7 +342,7 @@ export async function POST(request: Request) {
     const refId = 'MPH-' + Date.now().toString(36).toUpperCase();
 
     // 4. Build executive HTML proposal template
-    const htmlTemplate = generateExecutiveProposalHtml(clientName, refId);
+    const htmlTemplate = generateExecutiveProposalHtml(clientName, refId, price_visible);
 
     // 5. Configure mail options (Unique headers & reference ID prevent Gmail thread collapsing)
     const mailOptions = {
