@@ -141,9 +141,9 @@ Your goal in this stage is to provide value based on the author's book details, 
 export const STAGE_CONTACT_CAPTURE_PROMPT = `${BASE_IDENTITY}
 
 # Current Stage: CONTACT CAPTURE
-Your goal in this stage is to collect the author's valid email address and phone number before proceeding.
+Your goal in this stage is to collect the author's name, valid email address, and phone number before proceeding.
 
-- Ask naturally: "This sounds like a fantastic project! Before we move forward and discuss ahead, could you please share your email and phone number so we can stay connected?"
+- Ask naturally: "This sounds like a fantastic project! Before we move forward and discuss ahead, could you please share your name, email, and phone number so we can stay connected?"
 - If the user provides an INVALID phone number (e.g., international like +44, or less/more than 10 digits):
   Reply: "It looks like that phone number isn't a 10-digit US number. We currently require a valid US cell number to connect. Could you please provide one?"
 - IF THE USER EXPLICITLY REFUSES (e.g., "no", "just tell me here", "share in chat", "I don't want to give my number", "not comfortable"):

@@ -5,11 +5,11 @@ import { MessagesAnnotation } from '@langchain/langgraph';
 import { SystemMessage, AIMessage } from '@langchain/core/messages';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 
-import { 
-  STAGE_INITIAL_ENGAGEMENT_PROMPT, 
-  STAGE_QUALIFYING_PROMPT, 
+import {
+  STAGE_INITIAL_ENGAGEMENT_PROMPT,
+  STAGE_QUALIFYING_PROMPT,
   STAGE_VALUE_CREATION_PROMPT,
-  STAGE_CONTACT_CAPTURE_PROMPT, 
+  STAGE_CONTACT_CAPTURE_PROMPT,
   STAGE_PLANS_PROMPT,
   STAGE_SCHEDULING_PROMPT
 } from './prompt';
@@ -38,13 +38,13 @@ export function createAlexChatModel(modelName = 'gemini-3.5-flash-lite') {
 // ============================================================================
 async function evaluateStageTransition(state: typeof AgentState.State) {
   const lastMessage = state.messages[state.messages.length - 1];
-  
+
   if (!lastMessage || lastMessage._getType() !== 'human') {
-    return {}; 
+    return {};
   }
-  
+
   const currentStage = state.conversationStage || 'INITIAL_ENGAGEMENT';
-  
+
   const transitionSchema = z.object({
     nextStage: z.enum(["INITIAL_ENGAGEMENT", "QUALIFYING", "VALUE_CREATION", "CONTACT_CAPTURE", "PLANS", "SCHEDULING"]),
     reasoning: z.string().describe("Explanation for why this stage was chosen based on the rules.")
@@ -170,10 +170,10 @@ const workflow = new StateGraph(AgentState)
   .addNode('PLANS', runPlansNode)
   .addNode('SCHEDULING', runSchedulingNode)
   .addNode('tools', toolNode)
-  
+
   // Start by evaluating the state
   .addEdge(START, 'evaluator')
-  
+
   // Then route to the correct stage node
   .addConditionalEdges('evaluator', routeToStage, {
     'INITIAL_ENGAGEMENT': 'INITIAL_ENGAGEMENT',
@@ -183,7 +183,7 @@ const workflow = new StateGraph(AgentState)
     'PLANS': 'PLANS',
     'SCHEDULING': 'SCHEDULING'
   })
-  
+
   // From each stage, either end or go to tools
   .addConditionalEdges('INITIAL_ENGAGEMENT', shouldContinueFromStage, {
     'tools': 'tools',
@@ -209,7 +209,7 @@ const workflow = new StateGraph(AgentState)
     'tools': 'tools',
     [END]: END
   })
-  
+
   // If tools ran, we need to go back to the current stage node to process tool output
   .addConditionalEdges('tools', routeToStage, {
     'INITIAL_ENGAGEMENT': 'INITIAL_ENGAGEMENT',

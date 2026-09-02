@@ -47,7 +47,7 @@ export async function generateChatSummaryAction(chatId: string) {
     const llm = new ChatGoogleGenerativeAI({
       apiKey,
       model: "gemini-3.5-flash-lite",
-      temperature: 0.2,
+      temperature: 0.3,
     });
 
     const prompt = `You are an expert CRM Intelligence Analyst for Marketing And Publishing House LLC (MPH).
@@ -73,7 +73,7 @@ Output ONLY the JSON object, without markdown ticks or additional commentary.`;
 
     const response = await llm.invoke([new HumanMessage(prompt)]);
     const rawContent = response.content.toString().trim();
-    
+
     // Clean potential markdown wrap
     const jsonStr = rawContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
     let analysis: any = {};
@@ -123,11 +123,11 @@ Output ONLY the JSON object, without markdown ticks or additional commentary.`;
     revalidatePath(`/chats/${chatId}`);
     revalidatePath("/chats");
 
-    return { 
-      success: true, 
-      analysis, 
+    return {
+      success: true,
+      analysis,
       summary: chat.chatSummary,
-      outcome: chat.chatOutcome 
+      outcome: chat.chatOutcome
     };
   } catch (error: any) {
     console.error("Error generating chat summary:", error);
