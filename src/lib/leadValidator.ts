@@ -1,4 +1,7 @@
 import dns from 'dns';
+import { PhoneNumberUtil, PhoneNumberFormat } from 'google-libphonenumber';
+
+const phoneUtil = PhoneNumberUtil.getInstance();
 
 export interface LeadValidationResult {
   isValid: boolean;
@@ -122,55 +125,36 @@ export function validatePhone(phoneRaw?: string): { isValid: boolean; error?: st
     return { isValid: false, error: 'Phone number was not provided.' };
   }
 
-  const trimmed = phoneRaw.trim();
-  // Strip spaces, dashes, parentheses, dots
-  const digitsOnly = trimmed.replace(/\D/g, '');
+  const raw = phoneRaw.trim();
 
-  // Must have between 10 and 15 digits
-  if (digitsOnly.length < 10) {
-    return { isValid: false, error: `Phone number is too short (${digitsOnly.length} digits). It must have at least 10 digits.` };
-  }
-  if (digitsOnly.length > 15) {
-    return { isValid: false, error: `Phone number is too long (${digitsOnly.length} digits). Maximum allowed is 15 digits.` };
-  }
-
-  // Check for repeated identical digits (e.g., "1111111111", "9999999999", "0000000000")
+  // Basic check for obvious repeated strings or mashing before parsing
+  const digitsOnly = raw.replace(/\D/g, '');
   if (/^(\d)\1+$/.test(digitsOnly)) {
     return { isValid: false, error: 'Phone number consists of repeated identical digits.' };
   }
-
-  // Check for obvious sequential patterns (e.g., "1234567890", "0123456789", "9876543210")
   const sequentialAscending = '01234567890123456789';
   const sequentialDescending = '98765432109876543210';
-  if (sequentialAscending.includes(digitsOnly) || sequentialDescending.includes(digitsOnly)) {
+  if (digitsOnly.length > 0 && (sequentialAscending.includes(digitsOnly) || sequentialDescending.includes(digitsOnly))) {
     return { isValid: false, error: 'Phone number is a sequential test sequence.' };
   }
 
-  // Check keyboard mashing (low diversity of digits: <= 4 unique digits across 10+ digits, e.g. 123432412423)
-  const uniqueDigits = new Set(digitsOnly);
-  if (uniqueDigits.size <= 4) {
-    return { isValid: false, error: 'Phone number appears to be keyboard mashing or an invalid test sequence.' };
-  }
-
-  // US / NANP strict checks (+1 must be followed by exactly 10 digits)
-  if (trimmed.startsWith('+1')) {
-    if (digitsOnly.length !== 11) {
-      return { isValid: false, error: `US/Canada numbers (+1) must have exactly 10 digits after the country code. Found ${digitsOnly.length - 1} digits.` };
+  try {
+    // Parse using US as default region
+    const number = phoneUtil.parseAndKeepRawInput(raw, 'US');
+    
+    // We only accept valid US numbers
+    const isValidUS = phoneUtil.isValidNumberForRegion(number, 'US');
+    if (!isValidUS) {
+      return { isValid: false, error: 'Only valid US phone numbers are accepted.' };
     }
-  }
 
-  // Area code cannot start with 0 or 1 for US numbers (11 digits starting with 1, or 10 digits)
-  const nationalDigits = digitsOnly.length === 11 && digitsOnly.startsWith('1') ? digitsOnly.slice(1) : (digitsOnly.length === 10 ? digitsOnly : null);
-  if (nationalDigits) {
-    if (nationalDigits.startsWith('0') || nationalDigits.startsWith('1')) {
-      return { isValid: false, error: 'US phone numbers cannot have an area code starting with 0 or 1.' };
-    }
-    if (nationalDigits.startsWith('55501') || nationalDigits.slice(3, 6) === '555') {
-      return { isValid: false, error: 'Phone number uses a fictional or reserved exchange code.' };
-    }
+    // Format in E164 for a clean standard string (e.g. +19098765422)
+    const cleanPhone = phoneUtil.format(number, PhoneNumberFormat.E164);
+    
+    return { isValid: true, cleanPhone };
+  } catch (error: any) {
+    return { isValid: false, error: `Invalid phone number format: ${error.message || 'Could not parse number'}` };
   }
-
-  return { isValid: true, cleanPhone: trimmed };
 }
 
 /**
