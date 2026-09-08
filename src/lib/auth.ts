@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { cookies } from 'next/headers';
 
 const AUTH_COOKIE_NAME = 'admin_session_token';
-const AUTH_SECRET = process.env.AUTH_SECRET || process.env.ELEVENLABS_WEBHOOK_SECRET || 'crm-voice-agent-auth-secret-key-2026';
+const AUTH_SECRET = process.env.AUTH_SECRET || 'crm-voice-agent-auth-secret-key-2026';
 
 export function hashPassword(password: string): { hash: string; salt: string } {
   const salt = crypto.randomBytes(16).toString('hex');

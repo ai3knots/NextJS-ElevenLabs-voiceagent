@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const AUTH_COOKIE_NAME = 'admin_session_token';
-const AUTH_SECRET = process.env.AUTH_SECRET || process.env.ELEVENLABS_WEBHOOK_SECRET || 'crm-voice-agent-auth-secret-key-2026';
+const AUTH_SECRET = process.env.AUTH_SECRET || 'crm-voice-agent-auth-secret-key-2026';
 
 // Paths that NEVER require authentication
 const PUBLIC_PREFIXES = [
   '/login',
   '/demo',
+  '/logo-light.png',
+  '/3knotslogo.png',
   '/api/auth',
   '/api/admin/seed-admin',
   '/api/webhooks/post-call',
@@ -109,8 +111,8 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except static files
+     * Match all request paths except for static files, images, favicons, and media
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|pdf|css|js)$).*)',
   ],
 };

@@ -32,8 +32,9 @@ export default function LoginPage() {
       }
 
       toast.success('Welcome back, Admin!');
-      router.push('/');
-      router.refresh();
+      const searchParams = new URLSearchParams(window.location.search);
+      const destination = searchParams.get('redirect') || '/';
+      window.location.href = destination;
     } catch (err: any) {
       setError(err.message || 'Login failed');
       toast.error(err.message || 'Login failed');
