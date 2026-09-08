@@ -20,18 +20,12 @@ export default function Sidebar() {
 
   return (
     <aside className="w-[260px] bg-[#090D14] text-white flex flex-col fixed inset-y-0 left-0 z-40 transition-all duration-300 border-r border-slate-800/80">
-      <Link href="/" className="px-5 pt-6 pb-5 flex items-center gap-3 decoration-transparent group">
-        <div className="flex items-center gap-3">
-          <img 
-            src="/3knotslogo.png" 
-            alt="3Knots Digital" 
-            className="h-10 w-auto object-contain filter drop-shadow-[0_2px_10px_rgba(245,158,11,0.35)] transition-transform group-hover:scale-105"
-          />
-          <div className="flex flex-col">
-            <span className="text-[1.1rem] font-black text-white tracking-wider leading-none uppercase">3KNOTS</span>
-            <span className="text-[0.68rem] font-bold text-amber-500 tracking-[0.25em] uppercase leading-tight mt-0.5">DIGITAL</span>
-          </div>
-        </div>
+      <Link href="/" className="px-5 pt-6 pb-5 flex items-center decoration-transparent group">
+        <img 
+          src="/logo-light.png" 
+          alt="3Knots Digital" 
+          className="h-9 w-auto max-w-[210px] object-contain filter drop-shadow-[0_2px_10px_rgba(245,158,11,0.3)] transition-transform group-hover:scale-105"
+        />
       </Link>
       
       <ul className="flex-1 px-3 py-4 flex flex-col gap-[0.35rem] list-none m-0">

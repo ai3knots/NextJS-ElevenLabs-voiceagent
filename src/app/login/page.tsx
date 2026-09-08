@@ -57,19 +57,13 @@ export default function LoginPage() {
         
         {/* Header / Brand */}
         <div className="text-center mb-8">
-          {/* Logo Badge Container */}
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-slate-800/90 to-slate-900/90 border border-amber-500/30 shadow-[0_0_25px_rgba(245,158,11,0.2)] mb-4 group transition-transform duration-300 hover:scale-105">
+          {/* Logo Container */}
+          <div className="flex items-center justify-center mb-3 group transition-transform duration-300 hover:scale-105">
             <img 
-              src="/3knotslogo.png" 
+              src="/logo-light.png" 
               alt="3Knots Digital Logo" 
-              className="h-12 w-auto object-contain filter drop-shadow-[0_2px_12px_rgba(245,158,11,0.4)]"
+              className="h-12 w-auto max-w-[260px] object-contain filter drop-shadow-[0_2px_14px_rgba(245,158,11,0.35)]"
             />
-          </div>
-
-          <div className="flex items-center justify-center gap-1.5 mb-1">
-            <h1 className="text-2xl sm:text-3xl font-black tracking-wider text-white uppercase">
-              3KNOTS <span className="text-amber-500 font-extrabold">DIGITAL</span>
-            </h1>
           </div>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold tracking-wide mt-1">
