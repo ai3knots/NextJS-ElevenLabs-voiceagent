@@ -16,6 +16,11 @@ const PUBLIC_PREFIXES = [
   '/api/inngest',
   '/api/send-email',
   '/api/general-email',
+  '/api/send-marketing-plan',
+  '/api/marketing-plans',
+  '/api/email-templates',
+  '/api/ghostwriting-plans',
+  '/api/send-ghostwriting-plan',
   '/api/validate-card',
   '/api/contracts',
   '/api/chat', // Allow public access to chat API
