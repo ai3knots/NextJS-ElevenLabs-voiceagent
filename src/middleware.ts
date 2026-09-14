@@ -27,6 +27,7 @@ const PUBLIC_PREFIXES = [
   '/api/contracts',
   '/api/chat', // Allow public access to chat API
   '/api/webhook/messenger', // Allow Meta Webhook public access
+  '/api/check-approval', // Manager Discount Approval Webhook
   '/_next',
   '/favicon.ico',
   '/api/conversations', // For audio playback if needed
