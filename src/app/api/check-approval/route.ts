@@ -5,8 +5,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { plan_name, requested_discount, delay } = body;
 
-    // Use provided delay or default to 30 seconds
-    const holdTimeSecs = delay && typeof delay === 'number' ? delay : 30;
+    // Hardcoded to 40 seconds
+    const holdTimeSecs = 40;
     const holdTimeMs = holdTimeSecs * 1000;
 
     console.log(`[Check Approval] Received request for ${plan_name || 'unknown plan'} with ${requested_discount || 0}% discount.`);
