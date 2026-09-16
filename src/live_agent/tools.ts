@@ -203,57 +203,7 @@ export const saveLeadInfoTool = tool(
   }
 );
 
-/**
- * Tool: Trigger ElevenLabs Outbound Phone Call
- */
-export const triggerOutboundCallTool = tool(
-  async ({ phoneNumber, authorName, notes }) => {
-    try {
-      console.log(`📞 [Agent Tool] Triggering outbound ElevenLabs call for: ${authorName || 'Author'} at ${phoneNumber}`);
-      
-      const phoneCheck = validateUSPhoneNumber(phoneNumber);
-      if (!phoneCheck.isValid) {
-        return JSON.stringify({ 
-          success: false, 
-          validationError: true, 
-          error: phoneCheck.error || 'Must be a valid 10-digit US phone number.' 
-        });
-      }
 
-      const formattedPhone = `+1${phoneCheck.cleanPhone}`;
-
-      const callResult = await triggerOutboundCall(formattedPhone, {
-        first_name: authorName || 'Author',
-        notes: notes || 'Requested live call from website chat agent.',
-      });
-
-      if (callResult.success) {
-        return JSON.stringify({
-          success: true,
-          message: `Phone call initiated successfully to ${formattedPhone}`,
-          conversationId: callResult.conversation_id,
-        });
-      } else {
-        return JSON.stringify({
-          success: false,
-          error: callResult.error || 'Failed to connect call via ElevenLabs',
-        });
-      }
-    } catch (error: any) {
-      console.error('❌ [Agent Tool] Error triggering outbound call:', error.message);
-      return JSON.stringify({ success: false, error: error.message });
-    }
-  },
-  {
-    name: 'trigger_outbound_call',
-    description: 'Initiates an immediate live phone call to the author via the ElevenLabs voice agent when the user explicitly asks for a phone call. Phone MUST be a valid 10-digit US number.',
-    schema: z.object({
-      phoneNumber: z.string().describe('The destination 10-digit US phone number to dial'),
-      authorName: z.string().optional().describe('First or full name of the author'),
-      notes: z.string().optional().describe('Short context or summary of what they want to discuss on the call'),
-    }),
-  }
-);
 
 export const sendEmailTool = tool(
   async ({ emailAddress, authorName }) => {
@@ -300,5 +250,5 @@ export const sendEmailTool = tool(
   }
 );
 
-export const AGENT_TOOLS = [saveLeadInfoTool, triggerOutboundCallTool, sendEmailTool];
+export const AGENT_TOOLS = [saveLeadInfoTool, sendEmailTool];
 

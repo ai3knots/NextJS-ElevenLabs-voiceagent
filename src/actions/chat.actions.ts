@@ -139,13 +139,24 @@ Output ONLY the JSON object, without markdown ticks or additional commentary.`;
   }
 }
 
-/**
- * Delete a chat log
- */
 export async function deleteChatAction(chatId: string) {
   try {
     await connectDB();
     await ChatLogModel.findByIdAndDelete(chatId);
+    revalidatePath("/chats");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete all chat logs
+ */
+export async function deleteAllChatsAction() {
+  try {
+    await connectDB();
+    await ChatLogModel.deleteMany({});
     revalidatePath("/chats");
     return { success: true };
   } catch (error: any) {

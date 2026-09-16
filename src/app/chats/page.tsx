@@ -3,12 +3,17 @@ import connectDB from "@/lib/mongodb";
 import ChatLog from "@/models/ChatLog";
 import ChatsTableClient from "./ChatsTableClient";
 import { sanitizeChatLogs } from "@/lib/serialize";
-import { generateChatSummaryAction } from "@/actions/chat.actions";
+import { generateChatSummaryAction, deleteAllChatsAction } from "@/actions/chat.actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function ChatsPage() {
   await connectDB();
+
+  const handleDeleteAll = async () => {
+    "use server";
+    await deleteAllChatsAction();
+  };
   
   // Convert mongoose documents to 100% plain serializable objects for Client Component
   const rawChats = await ChatLog.find().sort({ createdAt: -1 }).lean();
@@ -44,6 +49,17 @@ export default async function ChatsPage() {
               Real-time conversational leads captured from the website interface. 
               Review AI summaries, follow-up requirements, and transcript data.
             </p>
+          </div>
+          <div>
+            <form action={handleDeleteAll}>
+              <button 
+                type="submit" 
+                className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 font-medium rounded-lg transition-colors border border-red-200"
+                title="Delete all chat logs from the database"
+              >
+                Delete All Chats
+              </button>
+            </form>
           </div>
         </div>
 
