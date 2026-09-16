@@ -3,6 +3,7 @@ import connectDB from "@/lib/mongodb";
 import ChatLog from "@/models/ChatLog";
 import ChatsTableClient from "./ChatsTableClient";
 import { sanitizeChatLogs } from "@/lib/serialize";
+import { generateChatSummaryAction } from "@/actions/chat.actions";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,18 @@ export default async function ChatsPage() {
   // Convert mongoose documents to 100% plain serializable objects for Client Component
   const rawChats = await ChatLog.find().sort({ createdAt: -1 }).lean();
   const chats = sanitizeChatLogs(rawChats);
+
+  // Background auto-heal for chats with missing or placeholder summaries
+  const unsummarized = rawChats.filter((c: any) => 
+    (!c.rawWebhookPayload?.analysis?.summary || c.chatSummary?.startsWith("Author exploring") || c.chatSummary?.startsWith("Initial author")) &&
+    Array.isArray(c.messages) && c.messages.length > 0
+  );
+
+  if (unsummarized.length > 0) {
+    unsummarized.slice(0, 3).forEach((c: any) => {
+      generateChatSummaryAction(c._id.toString()).catch(() => {});
+    });
+  }
 
 
   return (

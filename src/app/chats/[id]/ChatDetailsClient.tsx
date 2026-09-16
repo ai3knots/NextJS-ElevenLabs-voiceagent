@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Sparkles, 
   RefreshCw, 
@@ -73,7 +73,7 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
   const [analysis, setAnalysis] = useState<any>(chat.rawWebhookPayload?.analysis || null);
   const router = useRouter();
 
-  const handleGenerateSummary = async () => {
+  const handleGenerateSummary = async (isAuto = false) => {
     try {
       setIsSummarizing(true);
       const res = await generateChatSummaryAction(chat._id);
@@ -81,17 +81,34 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
         setCurrentSummary(res.summary);
         setCurrentOutcome(res.outcome);
         setAnalysis(res.analysis);
-        toast.success("AI Summary generated successfully!");
+        if (!isAuto) {
+          toast.success("AI Summary refreshed successfully!");
+        }
         router.refresh();
-      } else {
+      } else if (!isAuto) {
         toast.error(res.error || "Failed to generate summary");
       }
     } catch (e: any) {
-      toast.error(e.message || "An error occurred");
+      if (!isAuto) {
+        toast.error(e.message || "An error occurred");
+      }
     } finally {
       setIsSummarizing(false);
     }
   };
+
+  // Resilient auto-trigger: If chat has messages and no Gemini analysis yet, automatically generate
+  useEffect(() => {
+    const hasAnalysis = !!(analysis?.summary);
+    const isPlaceholder = !currentSummary || 
+      currentSummary.startsWith("Author exploring publishing options") || 
+      currentSummary.startsWith("Initial author inquiry");
+    const hasMessages = Array.isArray(chat.messages) && chat.messages.length > 0;
+
+    if ((!hasAnalysis || isPlaceholder) && hasMessages && !isSummarizing) {
+      handleGenerateSummary(true);
+    }
+  }, []);
 
   const handleCopyTranscript = () => {
     if (!chat.messages || chat.messages.length === 0) return;
@@ -177,7 +194,7 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
               </div>
 
               <button
-                onClick={handleGenerateSummary}
+                onClick={() => handleGenerateSummary(false)}
                 disabled={isSummarizing}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold transition-all border border-amber-300/60 disabled:opacity-50"
                 title="Re-analyze transcript and generate new summary"
@@ -189,13 +206,18 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
 
             {/* Executive Summary Content */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/70 text-slate-700 text-sm leading-relaxed font-medium">
-              {currentSummary ? (
+              {isSummarizing && !currentSummary ? (
+                <div className="flex items-center justify-center py-4 gap-2 text-amber-600 text-xs font-bold animate-pulse">
+                  <Sparkles className="w-4 h-4 animate-spin text-amber-500" />
+                  <span>Analyzing conversation intelligence with Gemini 3.5 Flash-Lite...</span>
+                </div>
+              ) : currentSummary ? (
                 <p className="whitespace-pre-wrap">{currentSummary}</p>
               ) : (
                 <div className="text-center py-4 text-slate-400 text-xs">
                   <p className="mb-2">No executive summary generated yet.</p>
                   <button
-                    onClick={handleGenerateSummary}
+                    onClick={() => handleGenerateSummary(false)}
                     disabled={isSummarizing}
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-xs shadow-sm hover:opacity-90"
                   >

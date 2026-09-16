@@ -2,7 +2,8 @@ import connectDB from '@/lib/mongodb';
 import ChatLogModel, { IChatLog, IChatMessage } from '@/models/ChatLog';
 import LeadModel from '@/models/Lead';
 import { alexChatGraph } from './graph';
-import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
+import { HumanMessage, AIMessage, BaseMessage, SystemMessage } from '@langchain/core/messages';
+import { generateChatSummaryAction } from '@/actions/chat.actions';
 import type { ChatAgentOptions, ChatAgentResponse } from '@/types/agent';
 
 export type { ChatAgentOptions, ChatAgentResponse };
@@ -26,8 +27,16 @@ export async function executeChatAgent({
   }).sort({ updatedAt: -1 });
 
   const pastMessages: BaseMessage[] = [];
+  let hoursSinceLastMessage = 0;
 
   if (chatLog && Array.isArray(chatLog.messages)) {
+    if (chatLog.messages.length > 0) {
+      const lastMsg = chatLog.messages[chatLog.messages.length - 1];
+      if (lastMsg.timestamp) {
+        hoursSinceLastMessage = (new Date().getTime() - new Date(lastMsg.timestamp).getTime()) / (1000 * 60 * 60);
+      }
+    }
+
     // Convert the last 15 messages into LangChain messages
     const recentTurns = chatLog.messages.slice(-15);
     for (const msg of recentTurns) {
@@ -40,6 +49,14 @@ export async function executeChatAgent({
   }
 
   // 2. Add current incoming user message
+  if (hoursSinceLastMessage >= 12) {
+    pastMessages.push(
+      new SystemMessage(
+        `[SYSTEM NOTE: The user has returned after a delay of ${Math.round(hoursSinceLastMessage)} hours. Before continuing with the current conversation stage, acknowledge their return politely (e.g. "Welcome back!", "Glad to see you again!"), briefly recap where you left off if appropriate, and then naturally transition back to the current goal.]`
+      )
+    );
+  }
+
   pastMessages.push(new HumanMessage(userMessage));
 
   // 3. Execute the LangGraph State Machine
@@ -104,18 +121,45 @@ export async function executeChatAgent({
     chatLog.chatOutcome = 'Author Discovery';
   }
 
-  // Auto-generate rolling summary
+  // Auto-generate rolling summary only if full AI summary hasn't been generated yet
+  const hasRealAiSummary = !!(chatLog.rawWebhookPayload?.analysis?.summary);
   const firstUserMsg = allMsgs.find(m => m.role === 'user')?.content || 'Inquiry';
   const lastUserMsg = allMsgs.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
   
-  if (allMsgs.length <= 2) {
-    chatLog.chatSummary = `Initial author inquiry: "${firstUserMsg.slice(0, 100)}..."`;
-  } else {
-    chatLog.chatSummary = `Author exploring publishing options. Discussed book details and requirements. Latest topic: "${lastUserMsg.slice(0, 80)}..."`;
+  if (!hasRealAiSummary) {
+    if (allMsgs.length <= 2) {
+      chatLog.chatSummary = `Initial author inquiry: "${firstUserMsg.slice(0, 100)}..."`;
+    } else if (!chatLog.chatSummary || chatLog.chatSummary.startsWith('Initial author inquiry') || chatLog.chatSummary.startsWith('Author exploring')) {
+      chatLog.chatSummary = `Author exploring publishing options. Discussed book details and requirements. Latest topic: "${lastUserMsg.slice(0, 80)}..."`;
+    }
   }
 
   chatLog.updatedAt = now;
   await chatLog.save();
+
+  // Vercel Serverless-compatible background execution
+  const chatLogIdStr = chatLog._id.toString();
+  try {
+    const { after } = await import('next/server');
+    if (typeof after === 'function') {
+      after(async () => {
+        try {
+          await generateChatSummaryAction(chatLogIdStr);
+        } catch (err: any) {
+          console.warn(`[AutoSummary] Background Gemini analysis failed for ${chatLogIdStr}:`, err?.message || err);
+        }
+      });
+    } else {
+      setTimeout(() => {
+        generateChatSummaryAction(chatLogIdStr).catch(() => {});
+      }, 100);
+    }
+  } catch {
+    // Fallback if executed outside Next.js server context (e.g., CLI test scripts)
+    setTimeout(() => {
+      generateChatSummaryAction(chatLogIdStr).catch(() => {});
+    }, 100);
+  }
 
   let finalReplies: string[] = [finalReply];
 

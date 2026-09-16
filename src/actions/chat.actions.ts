@@ -120,8 +120,12 @@ Output ONLY the JSON object, without markdown ticks or additional commentary.`;
 
     await chat.save();
 
-    revalidatePath(`/chats/${chatId}`);
-    revalidatePath("/chats");
+    try {
+      revalidatePath(`/chats/${chatId}`);
+      revalidatePath("/chats");
+    } catch {
+      // Ignore revalidation errors when called outside request store context
+    }
 
     return {
       success: true,

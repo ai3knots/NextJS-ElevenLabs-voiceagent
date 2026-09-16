@@ -1,12 +1,13 @@
 import React from "react";
 import connectDB from "@/lib/mongodb";
 import ChatLogModel from "@/models/ChatLog";
-import LeadModel from "@/models/Lead";
+import "@/models/Lead";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, MessageCircle, Sparkles, CheckCircle, Clock, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CheckCircle } from "lucide-react";
 import ChatDetailsClient from "./ChatDetailsClient";
 import { sanitizeChatLog } from "@/lib/serialize";
+import { generateChatSummaryAction } from "@/actions/chat.actions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,31 @@ export default async function ChatDetailsPage({ params }: { params: Promise<{ id
   const resolvedParams = await params;
   await connectDB();
 
-  const rawChat = await ChatLogModel.findById(resolvedParams.id).populate("leadId").lean();
+  let rawChat: any = await ChatLogModel.findById(resolvedParams.id).populate("leadId").lean();
+
+  if (!rawChat) {
+    notFound();
+  }
+
+  // Automatically generate AI Intelligence summary if missing or placeholder
+  const hasAnalysis = !!(rawChat.rawWebhookPayload?.analysis?.summary);
+  const hasMessages = Array.isArray(rawChat.messages) && rawChat.messages.length > 0;
+  const isPlaceholderSummary = !rawChat.chatSummary || 
+    rawChat.chatSummary.startsWith("Author exploring publishing options") || 
+    rawChat.chatSummary.startsWith("Initial author inquiry");
+
+  if ((!hasAnalysis || isPlaceholderSummary) && hasMessages) {
+    try {
+      await generateChatSummaryAction(resolvedParams.id);
+      const updated = await ChatLogModel.findById(resolvedParams.id).populate("leadId").lean();
+      if (updated) {
+        rawChat = updated;
+      }
+    } catch (e) {
+      console.warn("Auto-generation of AI summary on page load:", e);
+    }
+  }
+
   const chat = sanitizeChatLog(rawChat);
 
   if (!chat) {
