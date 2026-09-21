@@ -48,15 +48,12 @@ export async function executeChatAgent({
   }
 
   // 2. Add current incoming user message
+  let finalUserMessage = userMessage;
   if (hoursSinceLastMessage >= 12) {
-    pastMessages.push(
-      new SystemMessage(
-        `[SYSTEM NOTE: The user has returned after a delay of ${Math.round(hoursSinceLastMessage)} hours. Before continuing with the current conversation stage, acknowledge their return politely (e.g. "Welcome back!", "Glad to see you again!"), briefly recap where you left off if appropriate, and then naturally transition back to the current goal.]`
-      )
-    );
+    finalUserMessage = `[SYSTEM NOTE: The user has returned after a delay of ${Math.round(hoursSinceLastMessage)} hours. Before continuing with the current conversation stage, acknowledge their return politely (e.g. "Welcome back!", "Glad to see you again!"), briefly recap where you left off if appropriate, and then naturally transition back to the current goal.]\n\n${userMessage}`;
   }
 
-  pastMessages.push(new HumanMessage(userMessage));
+  pastMessages.push(new HumanMessage(finalUserMessage));
 
   // 3. Execute the LangGraph State Machine
   console.log(`🤖 [LangGraph Agent] Executing turn for Session [${sessionId}] (${platform})...`);

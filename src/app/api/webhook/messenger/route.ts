@@ -1,4 +1,4 @@
-import { NextResponse, after } from 'next/server';
+import { NextResponse } from 'next/server';
 import { executeChatAgent } from '@/agent';
 import { sendMessageToMeta } from '@/lib/meta';
 
@@ -38,7 +38,8 @@ export async function POST(request: Request) {
     // Check if this is an event from a page subscription
     if (body.object === 'page') {
       
-      after(async () => {
+      // Execute asynchronously to prevent Meta timeout (fire-and-forget)
+      (async () => {
         try {
           // Iterate over each entry - there may be multiple if batched
           for (const entry of body.entry) {
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
               const incomingText = webhookEvent.message.text;
               console.log(`💬 Received Messenger message from ${senderPsid}: "${incomingText}"`);
 
-              // 1. Execute LangGraph + Gemini 3.5 Flash-Lite Agent (handles memory, tools, and DB persistence)
+              // 1. Execute LangGraph + Gemini Agent
               const agentResponse = await executeChatAgent({
                 sessionId: senderPsid,
                 userMessage: incomingText,
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
         } catch (err) {
           console.error("Error during async webhook processing:", err);
         }
-      });
+      })();
 
       // Return a '200 OK' response to all requests immediately to prevent Meta from timing out
       return new NextResponse('EVENT_RECEIVED', { status: 200 });
