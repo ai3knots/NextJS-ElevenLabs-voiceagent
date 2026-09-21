@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { executeChatAgent } from '@/agent';
 import { sendMessageToMeta } from '@/lib/meta';
+import { waitUntil } from '@vercel/functions';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,8 +39,7 @@ export async function POST(request: Request) {
     // Check if this is an event from a page subscription
     if (body.object === 'page') {
       
-      // Execute asynchronously to prevent Meta timeout (fire-and-forget)
-      (async () => {
+      const processMessage = async () => {
         try {
           // Iterate over each entry - there may be multiple if batched
           for (const entry of body.entry) {
@@ -85,7 +85,10 @@ export async function POST(request: Request) {
         } catch (err) {
           console.error("Error during async webhook processing:", err);
         }
-      })();
+      };
+
+      // Tell Vercel Serverless not to kill the function before processMessage is done
+      waitUntil(processMessage());
 
       // Return a '200 OK' response to all requests immediately to prevent Meta from timing out
       return new NextResponse('EVENT_RECEIVED', { status: 200 });
