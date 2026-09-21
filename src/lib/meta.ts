@@ -44,3 +44,43 @@ export async function sendMessageToMeta(psid: string, text: string) {
     };
   }
 }
+
+/**
+ * Sends a sender action (like typing indicators) to a user via the Meta Graph API.
+ * @param psid The Page Scoped User ID of the recipient.
+ * @param action The action to send ('typing_on', 'typing_off', 'mark_seen').
+ */
+export async function sendSenderActionToMeta(psid: string, action: 'typing_on' | 'typing_off' | 'mark_seen') {
+  if (!META_API_TOKEN) {
+    console.error('Missing META_API in environment variables.');
+    return { success: false, error: 'Missing META_API token' };
+  }
+
+  try {
+    const url = `https://graph.facebook.com/v19.0/me/messages?access_token=${META_API_TOKEN}`;
+
+    const payload = {
+      recipient: {
+        id: psid,
+      },
+      sender_action: action,
+    };
+
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error: any) {
+    console.error(`Error sending sender action (${action}) to Meta:`, error.response?.data || error.message);
+    return {
+      success: false,
+      error: error.response?.data || error.message,
+    };
+  }
+}

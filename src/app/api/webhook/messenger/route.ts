@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { executeChatAgent } from '@/agent';
-import { sendMessageToMeta } from '@/lib/meta';
+import { sendMessageToMeta, sendSenderActionToMeta } from '@/lib/meta';
 import { waitUntil } from '@vercel/functions';
 
 export const dynamic = 'force-dynamic';
@@ -61,23 +61,43 @@ export async function POST(request: Request) {
           const incomingText = webhookEvent.message.text;
           console.log(`💬 Received Messenger message from ${senderPsid}: "${incomingText}"`);
 
-          // 1. Execute LangGraph + Gemini Agent (Awaited sequentially)
-          const agentResponse = await executeChatAgent({
-            sessionId: senderPsid,
-            userMessage: incomingText,
-            platform: 'messenger',
-          });
+          waitUntil(
+            (async () => {
+              try {
+                // 1. Execute LangGraph + Gemini Agent (Awaited sequentially)
+                const agentResponse = await executeChatAgent({
+                  sessionId: senderPsid,
+                  userMessage: incomingText,
+                  platform: 'messenger',
+                });
 
-          console.log(`🤖 Alex Agent Reply for ${senderPsid}:`, agentResponse.replies);
+                console.log(`🤖 Alex Agent Reply for ${senderPsid}:`, agentResponse.replies);
 
-          // 2. Deliver the response back to Meta Messenger
-          if (agentResponse.replies && agentResponse.replies.length > 0) {
-            for (const text of agentResponse.replies) {
-              await sendMessageToMeta(senderPsid, text);
-            }
-          } else {
-            await sendMessageToMeta(senderPsid, agentResponse.reply);
-          }
+                // 2. Deliver the response back to Meta Messenger
+                const replies = agentResponse.replies && agentResponse.replies.length > 0
+                  ? agentResponse.replies
+                  : [agentResponse.reply];
+
+                for (const text of replies) {
+                  // Send typing indicator
+                  await sendSenderActionToMeta(senderPsid, 'typing_on');
+
+                  // Calculate natural delay based on message length:
+                  // Base 1000ms + 20ms per character, capped at 4000ms 
+                  // to avoid uncomfortably long delays for large plans
+                  const delayMs = Math.min(1000 + (text.length * 20), 4000);
+                  
+                  // Wait for the calculated delay
+                  await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+                  // Send actual message
+                  await sendMessageToMeta(senderPsid, text);
+                }
+              } catch (error) {
+                console.error(`Error processing background message for ${senderPsid}:`, error);
+              }
+            })()
+          );
         }
       }
 
