@@ -39,58 +39,49 @@ export async function POST(request: Request) {
     // Check if this is an event from a page subscription
     if (body.object === 'page') {
       
-      const processMessage = async () => {
-        try {
-          // Iterate over each entry - there may be multiple if batched
-          for (const entry of body.entry) {
-            // Get the webhook event. entry.messaging is an array, but 
-            // will only ever contain one event, so we get index 0
-            const webhookEvent = entry.messaging?.[0];
-            
-            if (!webhookEvent) continue;
+      // Iterate over each entry - there may be multiple if batched
+      for (const entry of body.entry) {
+        // Get the webhook event. entry.messaging is an array, but 
+        // will only ever contain one event, so we get index 0
+        const webhookEvent = entry.messaging?.[0];
+        
+        if (!webhookEvent) continue;
 
-            // Ignore echo messages (messages sent by the page/bot itself)
-            if (webhookEvent.message?.is_echo) {
-              console.log('Ignoring echo message.');
-              continue;
-            }
-
-            // Get the sender PSID
-            const senderPsid = webhookEvent.sender?.id;
-            
-            // Check if the event is a message with text
-            if (senderPsid && webhookEvent.message && webhookEvent.message.text) {
-              const incomingText = webhookEvent.message.text;
-              console.log(`💬 Received Messenger message from ${senderPsid}: "${incomingText}"`);
-
-              // 1. Execute LangGraph + Gemini Agent
-              const agentResponse = await executeChatAgent({
-                sessionId: senderPsid,
-                userMessage: incomingText,
-                platform: 'messenger',
-              });
-
-              console.log(`🤖 Alex Agent Reply for ${senderPsid}:`, agentResponse.replies);
-
-              // 2. Deliver the response back to Meta Messenger
-              if (agentResponse.replies && agentResponse.replies.length > 0) {
-                for (const text of agentResponse.replies) {
-                  await sendMessageToMeta(senderPsid, text);
-                }
-              } else {
-                await sendMessageToMeta(senderPsid, agentResponse.reply);
-              }
-            }
-          }
-        } catch (err) {
-          console.error("Error during async webhook processing:", err);
+        // Ignore echo messages (messages sent by the page/bot itself)
+        if (webhookEvent.message?.is_echo) {
+          console.log('Ignoring echo message.');
+          continue;
         }
-      };
 
-      // Tell Vercel Serverless not to kill the function before processMessage is done
-      waitUntil(processMessage());
+        // Get the sender PSID
+        const senderPsid = webhookEvent.sender?.id;
+        
+        // Check if the event is a message with text
+        if (senderPsid && webhookEvent.message && webhookEvent.message.text) {
+          const incomingText = webhookEvent.message.text;
+          console.log(`💬 Received Messenger message from ${senderPsid}: "${incomingText}"`);
 
-      // Return a '200 OK' response to all requests immediately to prevent Meta from timing out
+          // 1. Execute LangGraph + Gemini Agent (Awaited sequentially)
+          const agentResponse = await executeChatAgent({
+            sessionId: senderPsid,
+            userMessage: incomingText,
+            platform: 'messenger',
+          });
+
+          console.log(`🤖 Alex Agent Reply for ${senderPsid}:`, agentResponse.replies);
+
+          // 2. Deliver the response back to Meta Messenger
+          if (agentResponse.replies && agentResponse.replies.length > 0) {
+            for (const text of agentResponse.replies) {
+              await sendMessageToMeta(senderPsid, text);
+            }
+          } else {
+            await sendMessageToMeta(senderPsid, agentResponse.reply);
+          }
+        }
+      }
+
+      // Return a '200 OK' response to all requests
       return new NextResponse('EVENT_RECEIVED', { status: 200 });
     } else {
       // Return a '404 Not Found' if event is not from a page subscription
