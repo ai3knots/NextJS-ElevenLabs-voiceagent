@@ -2,7 +2,7 @@ import connectDB from '@/lib/mongodb';
 import ChatLogModel, { IChatLog, IChatMessage } from '@/models/ChatLog';
 import LeadModel from '@/models/Lead';
 import { alexChatGraph } from './graph';
-import { HumanMessage, AIMessage, BaseMessage, SystemMessage } from '@langchain/core/messages';
+import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
 import { generateChatSummaryAction } from '@/actions/chat.actions';
 import type { ChatAgentOptions, ChatAgentResponse } from '@/types/agent';
 
@@ -47,9 +47,7 @@ export async function executeChatAgent({
       } else if (msg.role === 'agent') {
         pastMessages.push(new AIMessage(msg.content));
       } else if (msg.role === 'admin') {
-        pastMessages.push(
-          new SystemMessage(`[STAFF NOTE: A CRM admin already told the customer: "${msg.content}". Do not repeat or contradict this.]`)
-        );
+        pastMessages.push(new AIMessage(`[CRM staff already told the customer]: ${msg.content}`));
       }
     }
   }
@@ -74,23 +72,26 @@ export async function executeChatAgent({
 
   // 3. Execute the LangGraph State Machine
   console.log(`🤖 [LangGraph Agent] Executing turn for Session [${sessionId}] (${platform})...`);
-  const graphResult = await alexChatGraph.invoke({
-    messages: pastMessages,
-    conversationStage: chatLog?.conversationStage || 'INITIAL_ENGAGEMENT',
-  });
-  
-  const newStage = (graphResult.conversationStage || 'INITIAL_ENGAGEMENT') as IChatLog['conversationStage'];
+  let finalReply = "Thanks for your message — I am here to help with publishing. What kind of book are you working on?";
+  let newStage = (chatLog?.conversationStage || 'INITIAL_ENGAGEMENT') as IChatLog['conversationStage'];
 
-  // 4. Extract the final AI response
-  const resultMessages = graphResult.messages;
-  let finalReply = "Hello! Are you looking for publishing services?";
+  try {
+    const graphResult = await alexChatGraph.invoke({
+      messages: pastMessages,
+      conversationStage: chatLog?.conversationStage || 'INITIAL_ENGAGEMENT',
+    });
 
-  for (let i = resultMessages.length - 1; i >= 0; i--) {
-    const msg = resultMessages[i];
-    if (msg._getType() === 'ai' && typeof msg.content === 'string' && msg.content.trim()) {
-      finalReply = msg.content.trim();
-      break;
+    newStage = (graphResult.conversationStage || newStage) as IChatLog['conversationStage'];
+    const resultMessages = graphResult.messages;
+    for (let i = resultMessages.length - 1; i >= 0; i--) {
+      const msg = resultMessages[i];
+      if (msg._getType() === 'ai' && typeof msg.content === 'string' && msg.content.trim()) {
+        finalReply = msg.content.trim();
+        break;
+      }
     }
+  } catch (error) {
+    console.error(`[LangGraph Agent] Turn failed for ${sessionId}:`, error);
   }
 
   // 5. Persist the turn to MongoDB
@@ -112,8 +113,7 @@ export async function executeChatAgent({
     chatLog = new ChatLogModel({
       senderPsid: sessionId,
       platform: platform,
-      chatStatus: 'completed',
-      agentEnabled: true,
+      chatStatus: 'ongoing',
       messages: newTurns,
       conversationStage: newStage,
     });
@@ -121,6 +121,7 @@ export async function executeChatAgent({
     chatLog.messages = chatLog.messages || [];
     chatLog.messages.push(...newTurns);
     chatLog.conversationStage = newStage;
+    chatLog.chatStatus = 'ongoing';
   }
 
   const allMsgs = chatLog.messages || [];
@@ -156,29 +157,10 @@ export async function executeChatAgent({
   chatLog.updatedAt = now;
   await chatLog.save();
 
-  // Vercel Serverless-compatible background execution
   const chatLogIdStr = chatLog._id.toString();
-  try {
-    const { after } = await import('next/server');
-    if (typeof after === 'function') {
-      after(async () => {
-        try {
-          await generateChatSummaryAction(chatLogIdStr);
-        } catch (err: any) {
-          console.warn(`[AutoSummary] Background Gemini analysis failed for ${chatLogIdStr}:`, err?.message || err);
-        }
-      });
-    } else {
-      setTimeout(() => {
-        generateChatSummaryAction(chatLogIdStr).catch(() => {});
-      }, 100);
-    }
-  } catch {
-    // Fallback if executed outside Next.js server context (e.g., CLI test scripts)
-    setTimeout(() => {
-      generateChatSummaryAction(chatLogIdStr).catch(() => {});
-    }, 100);
-  }
+  generateChatSummaryAction(chatLogIdStr).catch((err: any) => {
+    console.warn(`[AutoSummary] Gemini analysis failed for ${chatLogIdStr}:`, err?.message || err);
+  });
 
   let finalReplies: string[] = [];
   if (isFirstMessage) {

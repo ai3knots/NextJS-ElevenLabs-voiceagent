@@ -5,6 +5,8 @@ import ChatLogModel from "@/models/ChatLog";
 import LeadModel from "@/models/Lead";
 import { sendMessageToMeta } from "@/lib/meta";
 import { appendChatMessage } from "@/lib/chatLog";
+import { sanitizeChatLogs } from "@/lib/serialize";
+import { isEmmaAutoReplyEnabled, setEmmaAutoReplyEnabled } from "@/lib/emmaSettings";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { revalidatePath } from "next/cache";
@@ -92,7 +94,6 @@ Output ONLY the JSON object, without markdown ticks or additional commentary.`;
     // Update ChatLog in MongoDB
     chat.chatSummary = analysis.summary || chat.chatSummary;
     chat.chatOutcome = analysis.chatOutcome || chat.chatOutcome || "Completed";
-    chat.chatStatus = "completed";
     chat.rawWebhookPayload = {
       ...(chat.rawWebhookPayload || {}),
       analysis,
@@ -166,10 +167,43 @@ export async function deleteAllChatsAction() {
   }
 }
 
+export async function listChatsAction() {
+  try {
+    await connectDB();
+    const [rawChats, globalEmmaEnabled] = await Promise.all([
+      ChatLogModel.find().sort({ updatedAt: -1 }).populate('leadId').lean(),
+      isEmmaAutoReplyEnabled(),
+    ]);
+    return { success: true as const, chats: sanitizeChatLogs(rawChats), globalEmmaEnabled };
+  } catch (error: any) {
+    return { success: false as const, error: error.message || 'Failed to load chats', chats: [], globalEmmaEnabled: true };
+  }
+}
+
+export async function getEmmaGlobalEnabled() {
+  try {
+    const enabled = await isEmmaAutoReplyEnabled();
+    return { success: true as const, enabled };
+  } catch (error: any) {
+    return { success: false as const, enabled: true, error: error.message };
+  }
+}
+
+export async function setEmmaGlobalEnabled(enabled: boolean) {
+  try {
+    const next = await setEmmaAutoReplyEnabled(enabled);
+    return { success: true as const, enabled: next };
+  } catch (error: any) {
+    return { success: false as const, error: error.message || 'Failed to update global Emma switch' };
+  }
+}
+
 export async function getChatMessages(chatId: string) {
   try {
     await connectDB();
-    const chat = await ChatLogModel.findById(chatId).select('messages agentEnabled platform senderPsid').lean();
+    const chat = await ChatLogModel.findById(chatId)
+      .select('messages agentEnabled platform senderPsid chatStatus updatedAt')
+      .lean();
     if (!chat) {
       return { success: false as const, error: 'Chat not found' };
     }
@@ -181,8 +215,11 @@ export async function getChatMessages(chatId: string) {
         timestamp: m.timestamp ? new Date(m.timestamp).toISOString() : null,
       })),
       agentEnabled: chat.agentEnabled !== false,
+      globalEmmaEnabled: await isEmmaAutoReplyEnabled(),
       platform: chat.platform || 'web',
       senderPsid: chat.senderPsid || '',
+      chatStatus: chat.chatStatus || 'ongoing',
+      updatedAt: chat.updatedAt ? new Date(chat.updatedAt).toISOString() : null,
     };
   } catch (error: any) {
     return { success: false as const, error: error.message || 'Failed to load messages' };
@@ -192,15 +229,15 @@ export async function getChatMessages(chatId: string) {
 export async function setChatAgentEnabled(chatId: string, enabled: boolean) {
   try {
     await connectDB();
-    const chat = await ChatLogModel.findById(chatId);
+    const chat = await ChatLogModel.findByIdAndUpdate(
+      chatId,
+      { $set: { agentEnabled: enabled } },
+      { new: true }
+    );
     if (!chat) {
       return { success: false, error: 'Chat not found' };
     }
-    chat.agentEnabled = enabled;
-    await chat.save();
-    revalidatePath(`/chats/${chatId}`);
-    revalidatePath('/chats');
-    return { success: true, agentEnabled: enabled };
+    return { success: true, agentEnabled: chat.agentEnabled !== false };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to update agent setting' };
   }
@@ -214,7 +251,7 @@ export async function sendAdminMessengerReply(chatId: string, text: string) {
 
   try {
     await connectDB();
-    const chat = await ChatLogModel.findById(chatId);
+    const chat = await ChatLogModel.findById(chatId).select('platform senderPsid');
     if (!chat) {
       return { success: false, error: 'Chat not found' };
     }
@@ -225,20 +262,33 @@ export async function sendAdminMessengerReply(chatId: string, text: string) {
       return { success: false, error: 'Missing Messenger sender ID' };
     }
 
-    const result = await sendMessageToMeta(chat.senderPsid, trimmed);
-    if (!result.success) {
-      return { success: false, error: typeof result.error === 'string' ? result.error : 'Failed to send to Messenger' };
-    }
-
+    const senderPsid = chat.senderPsid;
     await appendChatMessage({
       chatId,
-      senderPsid: chat.senderPsid,
+      senderPsid,
       platform: 'messenger',
       role: 'admin',
       content: trimmed,
     });
 
-    revalidatePath(`/chats/${chatId}`);
+    const deliver = async () => {
+      const result = await sendMessageToMeta(senderPsid, trimmed);
+      if (!result.success) {
+        console.error('Background Meta send failed:', result.error);
+      }
+    };
+
+    try {
+      const { after } = await import('next/server');
+      if (typeof after === 'function') {
+        after(deliver);
+      } else {
+        void deliver();
+      }
+    } catch {
+      void deliver();
+    }
+
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to send message' };

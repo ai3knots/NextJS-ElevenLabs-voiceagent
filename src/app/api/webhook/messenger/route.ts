@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import { executeChatAgent } from '@/agent';
 import { sendMessageToMeta, sendSenderActionToMeta } from '@/lib/meta';
 import { appendChatMessage } from '@/lib/chatLog';
+import ChatLogModel from '@/models/ChatLog';
+import { isEmmaAutoReplyEnabled, withChatSessionLock } from '@/lib/emmaSettings';
 import { waitUntil } from '@vercel/functions';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 // This is the Verify Token you set up in the Meta App Dashboard
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
@@ -63,7 +66,7 @@ export async function POST(request: Request) {
           console.log(`💬 Received Messenger message from ${senderPsid}: "${incomingText}"`);
 
           waitUntil(
-            (async () => {
+            withChatSessionLock(senderPsid, async () => {
               try {
                 const chatLog = await appendChatMessage({
                   senderPsid,
@@ -72,8 +75,17 @@ export async function POST(request: Request) {
                   content: incomingText,
                 });
 
-                if (chatLog.agentEnabled === false) {
-                  console.log(`Agent paused for ${senderPsid}; inbound message saved only.`);
+                const globalOn = await isEmmaAutoReplyEnabled();
+                const latest = await ChatLogModel.findById(chatLog._id).select('agentEnabled').lean();
+                console.log(`Emma gate for ${senderPsid}: global=${globalOn} chat=${latest?.agentEnabled}`);
+
+                if (!globalOn) {
+                  console.log(`Global Emma switch is off; inbound saved only for ${senderPsid}.`);
+                  return;
+                }
+
+                if (latest && latest.agentEnabled === false) {
+                  console.log(`This chat is in human takeover; Emma skipped for ${senderPsid}.`);
                   return;
                 }
 
@@ -86,30 +98,24 @@ export async function POST(request: Request) {
 
                 console.log(`🤖 Alex Agent Reply for ${senderPsid}:`, agentResponse.replies);
 
-                // 2. Deliver the response back to Meta Messenger
                 const replies = agentResponse.replies && agentResponse.replies.length > 0
                   ? agentResponse.replies
                   : [agentResponse.reply];
 
                 for (const text of replies) {
-                  // Send typing indicator
+                  if (!text?.trim()) continue;
                   await sendSenderActionToMeta(senderPsid, 'typing_on');
-
-                  // Calculate natural delay based on message length:
-                  // Base 1000ms + 20ms per character, capped at 4000ms 
-                  // to avoid uncomfortably long delays for large plans
-                  const delayMs = Math.min(1000 + (text.length * 20), 4000);
-                  
-                  // Wait for the calculated delay
+                  const delayMs = Math.min(400 + (text.length * 8), 1500);
                   await new Promise((resolve) => setTimeout(resolve, delayMs));
-
-                  // Send actual message
-                  await sendMessageToMeta(senderPsid, text);
+                  const sent = await sendMessageToMeta(senderPsid, text);
+                  if (!sent.success) {
+                    console.error(`Meta send failed for ${senderPsid}:`, sent.error);
+                  }
                 }
               } catch (error) {
                 console.error(`Error processing background message for ${senderPsid}:`, error);
               }
-            })()
+            })
           );
         }
       }

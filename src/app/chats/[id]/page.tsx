@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle } from "lucide-react";
 import ChatDetailsClient from "./ChatDetailsClient";
 import { sanitizeChatLog } from "@/lib/serialize";
-import { generateChatSummaryAction } from "@/actions/chat.actions";
+import { isChatOngoing } from "@/lib/chatStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -21,25 +21,6 @@ export default async function ChatDetailsPage({ params }: { params: Promise<{ id
     notFound();
   }
 
-  // Automatically generate AI Intelligence summary if missing or placeholder
-  const hasAnalysis = !!(rawChat.rawWebhookPayload?.analysis?.summary);
-  const hasMessages = Array.isArray(rawChat.messages) && rawChat.messages.length > 0;
-  const isPlaceholderSummary = !rawChat.chatSummary || 
-    rawChat.chatSummary.startsWith("Author exploring publishing options") || 
-    rawChat.chatSummary.startsWith("Initial author inquiry");
-
-  if ((!hasAnalysis || isPlaceholderSummary) && hasMessages) {
-    try {
-      await generateChatSummaryAction(resolvedParams.id);
-      const updated = await ChatLogModel.findById(resolvedParams.id).populate("leadId").lean();
-      if (updated) {
-        rawChat = updated;
-      }
-    } catch (e) {
-      console.warn("Auto-generation of AI summary on page load:", e);
-    }
-  }
-
   const chat = sanitizeChatLog(rawChat);
 
   if (!chat) {
@@ -47,6 +28,7 @@ export default async function ChatDetailsPage({ params }: { params: Promise<{ id
   }
 
   const isCompleted = chat.chatStatus === "completed" || chat.chatStatus === "done";
+  const ongoing = isChatOngoing(chat.updatedAt);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] p-6 lg:p-10 font-sans">
@@ -86,12 +68,14 @@ export default async function ChatDetailsPage({ params }: { params: Promise<{ id
 
             {/* Status Badge */}
             <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
-              isCompleted
+              ongoing
+                ? "bg-sky-50 text-sky-800 border border-sky-200/80"
+                : isCompleted
                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80"
                 : "bg-amber-50 text-amber-700 border border-amber-200/80"
             }`}>
               <CheckCircle className="w-3.5 h-3.5" />
-              {chat.chatStatus || "Completed"}
+              {ongoing ? "Ongoing" : (chat.chatStatus || "Completed")}
             </span>
           </div>
         </div>

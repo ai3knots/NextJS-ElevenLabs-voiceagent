@@ -17,31 +17,30 @@ export async function appendChatMessage(options: {
     timestamp: now,
   };
 
-  let chatLog: IChatLog | null = null;
+  const filter = options.chatId
+    ? { _id: options.chatId }
+    : { senderPsid: options.senderPsid, platform: options.platform || 'web' };
 
-  if (options.chatId) {
-    chatLog = await ChatLogModel.findById(options.chatId);
-  } else if (options.senderPsid) {
-    chatLog = await ChatLogModel.findOne({
-      senderPsid: options.senderPsid,
-      platform: options.platform || 'web',
-    }).sort({ updatedAt: -1 });
+  const updated = await ChatLogModel.findOneAndUpdate(
+    filter,
+    {
+      $push: { messages: message },
+      $set: { chatStatus: 'ongoing', updatedAt: now },
+    },
+    { new: true, sort: { updatedAt: -1 } }
+  );
+
+  if (updated) {
+    return updated;
   }
 
-  if (!chatLog) {
-    chatLog = new ChatLogModel({
-      senderPsid: options.senderPsid,
-      platform: options.platform || 'web',
-      chatStatus: 'completed',
-      agentEnabled: true,
-      messages: [message],
-    });
-  } else {
-    chatLog.messages = chatLog.messages || [];
-    chatLog.messages.push(message);
-  }
+  const created = await ChatLogModel.create({
+    senderPsid: options.senderPsid,
+    platform: options.platform || 'web',
+    chatStatus: 'ongoing',
+    agentEnabled: true,
+    messages: [message],
+  });
 
-  chatLog.updatedAt = now;
-  await chatLog.save();
-  return chatLog;
+  return created;
 }

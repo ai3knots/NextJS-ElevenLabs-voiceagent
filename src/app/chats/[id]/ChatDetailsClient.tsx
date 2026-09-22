@@ -28,6 +28,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import ConfirmModal from "@/components/ConfirmModal";
+import { isChatOngoing } from "@/lib/chatStatus";
 
 // Cleanly format message text: removes raw asterisks/stars and renders clean typography
 function renderFormattedMessage(text: string, isUser: boolean, isAdmin = false) {
@@ -76,9 +77,12 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
   const [analysis, setAnalysis] = useState<any>(chat.rawWebhookPayload?.analysis || null);
   const [messages, setMessages] = useState<any[]>(Array.isArray(chat.messages) ? chat.messages : []);
   const [agentEnabled, setAgentEnabled] = useState(chat.agentEnabled !== false);
+  const [globalEmmaEnabled, setGlobalEmmaEnabled] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState(chat.updatedAt || chat.createdAt);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isTogglingAgent, setIsTogglingAgent] = useState(false);
+  const skipAgentPollUntil = useRef(0);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
   const isMessenger = chat.platform === "messenger";
@@ -121,18 +125,23 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
   }, []);
 
   useEffect(() => {
-    if (!isMessenger) return;
-
     const poll = async () => {
       if (typeof document !== "undefined" && document.hidden) return;
       const res = await getChatMessages(chat._id);
       if (res.success) {
         setMessages(res.messages);
-        setAgentEnabled(res.agentEnabled);
+        if (res.updatedAt) setUpdatedAt(res.updatedAt);
+        if (Date.now() >= skipAgentPollUntil.current) {
+          setAgentEnabled(res.agentEnabled);
+        }
+        if (typeof res.globalEmmaEnabled === "boolean") {
+          setGlobalEmmaEnabled(res.globalEmmaEnabled);
+        }
       }
     };
 
-    const interval = setInterval(poll, 2000);
+    poll();
+    const interval = setInterval(poll, 1000);
     const onVisibility = () => {
       if (!document.hidden) poll();
     };
@@ -141,7 +150,7 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [chat._id, isMessenger]);
+  }, [chat._id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -196,12 +205,15 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
     try {
       setIsTogglingAgent(true);
       const next = !agentEnabled;
+      setAgentEnabled(next);
+      skipAgentPollUntil.current = Date.now() + 4000;
       const res = await setChatAgentEnabled(chat._id, next);
       if (!res.success) {
+        setAgentEnabled(!next);
         throw new Error(res.error || "Failed to update Emma replies");
       }
-      setAgentEnabled(next);
-      toast.success(next ? "Emma auto-replies are on" : "Emma auto-replies are off");
+      setAgentEnabled(res.agentEnabled ?? next);
+      toast.success(next ? "Emma will auto-reply on Messenger" : "Emma paused. You can reply from CRM.");
     } catch (e: any) {
       toast.error(e.message || "Failed to update Emma replies");
     } finally {
@@ -212,16 +224,20 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
   const handleSendAdminReply = async () => {
     const text = draft.trim();
     if (!text || isSending) return;
+    const optimistic = {
+      role: "admin",
+      content: text,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setDraft("");
+    setIsSending(true);
     try {
-      setIsSending(true);
       const res = await sendAdminMessengerReply(chat._id, text);
       if (!res.success) {
+        setMessages((prev) => prev.filter((m) => m !== optimistic));
+        setDraft(text);
         throw new Error(res.error || "Failed to send");
-      }
-      setDraft("");
-      const latest = await getChatMessages(chat._id);
-      if (latest.success) {
-        setMessages(latest.messages);
       }
     } catch (e: any) {
       toast.error(e.message || "Failed to send to Messenger");
@@ -438,32 +454,16 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col min-h-[600px]">
             
             {/* Transcript Card Header */}
-            <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between gap-3">
+            <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/70 space-y-3">
+              <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="font-extrabold text-sm text-slate-900">Live Conversation Transcript</h3>
                 <p className="text-[11px] text-slate-400 font-medium">
                   {messages.length} messages recorded
-                  {isMessenger ? (agentEnabled ? " · Emma is replying" : " · Human takeover") : ""}
+                  {isChatOngoing(updatedAt) ? " · Ongoing now" : ""}
                 </p>
               </div>
-
-              <div className="flex items-center gap-2">
-                {isMessenger && (
-                  <button
-                    onClick={handleToggleAgent}
-                    disabled={isTogglingAgent}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border shadow-xs transition-all disabled:opacity-50 ${
-                      agentEnabled
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
-                        : "bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100"
-                    }`}
-                    title="Turn Emma auto-replies on or off"
-                  >
-                    {agentEnabled ? <Bot className="w-3.5 h-3.5" /> : <BotOff className="w-3.5 h-3.5" />}
-                    <span>{agentEnabled ? "Emma On" : "Emma Off"}</span>
-                  </button>
-                )}
-                <button
+              <button
                 onClick={handleCopyTranscript}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-xs transition-all"
                 title="Copy entire conversation transcript"
@@ -472,6 +472,46 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
                 <span>{copied ? "Copied!" : "Copy Full Transcript"}</span>
               </button>
               </div>
+
+              {isMessenger && !globalEmmaEnabled && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5">
+                  <p className="text-xs font-extrabold text-rose-900">Emma is paused globally</p>
+                  <p className="text-[11px] text-rose-700">
+                    This chat will not get auto-replies until you turn Emma back on from the Chats page or Agent Settings. Taking over this chat only affects this customer.
+                  </p>
+                </div>
+              )}
+
+              {isMessenger && (
+                <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border px-3 py-2.5 ${
+                  agentEnabled
+                    ? "bg-emerald-50 border-emerald-200"
+                    : "bg-rose-50 border-rose-200"
+                }`}>
+                  <div>
+                    <p className={`text-xs font-extrabold ${agentEnabled ? "text-emerald-900" : "text-rose-900"}`}>
+                      {agentEnabled ? "This chat: Emma can auto-reply" : "This chat: human takeover"}
+                    </p>
+                    <p className={`text-[11px] ${agentEnabled ? "text-emerald-700" : "text-rose-700"}`}>
+                      {agentEnabled
+                        ? "Pause only this conversation. Other Messenger chats still get Emma."
+                        : "Emma is off for this customer only. Other chats are unchanged."}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleToggleAgent}
+                    disabled={isTogglingAgent}
+                    className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border shadow-xs transition-all disabled:opacity-50 whitespace-nowrap ${
+                      agentEnabled
+                        ? "bg-white text-rose-800 border-rose-200 hover:bg-rose-100"
+                        : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                    }`}
+                  >
+                    {agentEnabled ? <BotOff className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+                    <span>{agentEnabled ? "Stop Emma / Take over this chat" : "Resume Emma on this chat"}</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Messages Feed */}

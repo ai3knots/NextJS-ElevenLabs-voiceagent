@@ -3,7 +3,8 @@ import connectDB from "@/lib/mongodb";
 import ChatLog from "@/models/ChatLog";
 import ChatsTableClient from "./ChatsTableClient";
 import { sanitizeChatLogs } from "@/lib/serialize";
-import { generateChatSummaryAction, deleteAllChatsAction } from "@/actions/chat.actions";
+import { generateChatSummaryAction, deleteAllChatsAction, getEmmaGlobalEnabled } from "@/actions/chat.actions";
+import EmmaGlobalSwitch from "@/components/EmmaGlobalSwitch";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,9 @@ export default async function ChatsPage() {
   };
   
   // Convert mongoose documents to 100% plain serializable objects for Client Component
-  const rawChats = await ChatLog.find().sort({ createdAt: -1 }).lean();
+  const rawChats = await ChatLog.find().sort({ updatedAt: -1 }).lean();
   const chats = sanitizeChatLogs(rawChats);
+  const globalEmma = await getEmmaGlobalEnabled();
 
   // Background auto-heal for chats with missing or placeholder summaries
   const unsummarized = rawChats.filter((c: any) => 
@@ -50,7 +52,8 @@ export default async function ChatsPage() {
               Review AI summaries, follow-up requirements, and transcript data.
             </p>
           </div>
-          <div>
+          <div className="flex flex-col items-stretch md:items-end gap-3">
+            <EmmaGlobalSwitch initialEnabled={globalEmma.enabled !== false} />
             <form action={handleDeleteAll}>
               <button 
                 type="submit" 

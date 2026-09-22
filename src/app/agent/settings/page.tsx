@@ -1,6 +1,8 @@
 import { fetchAgentDetails, saveAgentDetails, getCurrentAgentId, fetchPhoneNumbers, getSelectedPhoneNumber } from "@/actions/agent.actions";
+import { getEmmaGlobalEnabled } from "@/actions/chat.actions";
 import { CheckCircle2, Mic, Settings2, PhoneCall } from "lucide-react";
 import PhoneNumberSelector from "@/components/PhoneNumberSelector";
+import EmmaGlobalSwitch from "@/components/EmmaGlobalSwitch";
 
 export const dynamic = 'force-dynamic';
 
@@ -8,10 +10,16 @@ export default async function AgentSettingsPage() {
   const agentDetails = await fetchAgentDetails();
   const phoneNumbers = await fetchPhoneNumbers();
   const currentPhoneNumberId = await getSelectedPhoneNumber();
+  const globalEmma = await getEmmaGlobalEnabled();
+
+  const messengerSwitch = (
+    <EmmaGlobalSwitch initialEnabled={globalEmma.enabled !== false} />
+  );
 
   if (!agentDetails) {
     return (
-      <div className="max-w-[950px] mx-auto pt-6 pb-12">
+      <div className="max-w-[950px] mx-auto pt-6 pb-12 space-y-6">
+        {messengerSwitch}
         <div className="p-12 text-center bg-white rounded-2xl shadow-sm border border-slate-200">
           <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <Settings2 size={32} />
@@ -35,6 +43,7 @@ export default async function AgentSettingsPage() {
 
   return (
     <div className="max-w-[950px] mx-auto pt-4 pb-12 space-y-6">
+      {messengerSwitch}
       <div className="bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-200 overflow-hidden">
         
         {/* Header Section */}

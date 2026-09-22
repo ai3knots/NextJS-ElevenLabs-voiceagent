@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { MessageCircle, CheckCircle, AlertCircle, X, Clock, FileText, User, ExternalLink, ArrowRight } from "lucide-react";
+import { listChatsAction } from "@/actions/chat.actions";
+import { isChatOngoing } from "@/lib/chatStatus";
 
 function formatRelativeDate(dateString: string | Date) {
   const date = new Date(dateString);
@@ -20,8 +22,38 @@ function formatRelativeDate(dateString: string | Date) {
   return date.toLocaleDateString();
 }
 
-export default function ChatsTableClient({ chats }: { chats: any[] }) {
+export default function ChatsTableClient({ chats: initialChats }: { chats: any[] }) {
+  const [chats, setChats] = useState<any[]>(initialChats);
   const [selectedChat, setSelectedChat] = useState<any | null>(null);
+
+  useEffect(() => {
+    setChats(initialChats);
+  }, [initialChats]);
+
+  useEffect(() => {
+    const poll = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      const res = await listChatsAction();
+      if (res.success) {
+        setChats(res.chats);
+        setSelectedChat((current: any | null) => {
+          if (!current) return current;
+          return res.chats.find((c: any) => c._id === current._id) || current;
+        });
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 2000);
+    const onVisibility = () => {
+      if (!document.hidden) poll();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
 
   // Helper to parse transcript lines if summaryText looks like a transcript
   const renderTranscript = (summaryText: string) => {
@@ -95,7 +127,7 @@ export default function ChatsTableClient({ chats }: { chats: any[] }) {
                 </tr>
               ) : (
                 chats.map((chat: any) => {
-                  const isSuccess = chat.chatStatus === 'completed' || chat.chatStatus === 'done';
+                  const ongoing = isChatOngoing(chat.updatedAt);
                   
                   return (
                     <tr 
@@ -162,15 +194,15 @@ export default function ChatsTableClient({ chats }: { chats: any[] }) {
                         onClick={() => setSelectedChat(chat)}
                         className="px-6 py-4 border-b border-slate-100 cursor-pointer"
                       >
-                        {isSuccess ? (
+                        {ongoing ? (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-sky-50 text-sky-800 border border-sky-200/60 rounded-full text-xs font-semibold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+                            Ongoing
+                          </span>
+                        ) : (
                           <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/60 rounded-full text-xs font-semibold">
                             <CheckCircle size={12} />
                             Completed
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200/60 rounded-full text-xs font-semibold capitalize">
-                            <AlertCircle size={12} />
-                            {chat.chatStatus}
                           </span>
                         )}
                       </td>
@@ -181,7 +213,7 @@ export default function ChatsTableClient({ chats }: { chats: any[] }) {
                         className="px-6 py-4 border-b border-slate-100 whitespace-nowrap cursor-pointer"
                       >
                         <span className="font-medium text-slate-600 text-xs">
-                          {formatRelativeDate(chat.createdAt)}
+                          {formatRelativeDate(chat.updatedAt || chat.createdAt)}
                         </span>
                       </td>
 
