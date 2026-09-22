@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { executeChatAgent } from '@/agent';
 import { sendMessageToMeta, sendSenderActionToMeta } from '@/lib/meta';
+import { appendChatMessage } from '@/lib/chatLog';
 import { waitUntil } from '@vercel/functions';
 
 export const dynamic = 'force-dynamic';
@@ -64,11 +65,23 @@ export async function POST(request: Request) {
           waitUntil(
             (async () => {
               try {
-                // 1. Execute LangGraph + Gemini Agent (Awaited sequentially)
+                const chatLog = await appendChatMessage({
+                  senderPsid,
+                  platform: 'messenger',
+                  role: 'user',
+                  content: incomingText,
+                });
+
+                if (chatLog.agentEnabled === false) {
+                  console.log(`Agent paused for ${senderPsid}; inbound message saved only.`);
+                  return;
+                }
+
                 const agentResponse = await executeChatAgent({
                   sessionId: senderPsid,
                   userMessage: incomingText,
                   platform: 'messenger',
+                  skipPersistUserMessage: true,
                 });
 
                 console.log(`🤖 Alex Agent Reply for ${senderPsid}:`, agentResponse.replies);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   Sparkles, 
   RefreshCw, 
@@ -17,9 +17,12 @@ import {
   Calendar,
   Layers,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Send,
+  Bot,
+  BotOff
 } from "lucide-react";
-import { generateChatSummaryAction, deleteChatAction } from "@/actions/chat.actions";
+import { generateChatSummaryAction, deleteChatAction, getChatMessages, setChatAgentEnabled, sendAdminMessengerReply } from "@/actions/chat.actions";
 import { triggerManualCall } from "@/actions/lead.actions";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -27,7 +30,7 @@ import Link from "next/link";
 import ConfirmModal from "@/components/ConfirmModal";
 
 // Cleanly format message text: removes raw asterisks/stars and renders clean typography
-function renderFormattedMessage(text: string, isUser: boolean) {
+function renderFormattedMessage(text: string, isUser: boolean, isAdmin = false) {
   if (!text) return null;
   const lines = text.split('\n');
 
@@ -43,7 +46,7 @@ function renderFormattedMessage(text: string, isUser: boolean) {
               if (part.startsWith('**') && part.endsWith('**')) {
                 const boldText = part.slice(2, -2).replace(/\*/g, '');
                 return (
-                  <strong key={partIdx} className={`font-bold ${isUser ? 'text-white' : 'text-slate-900'}`}>
+                  <strong key={partIdx} className={`font-bold ${isUser || isAdmin ? 'text-white' : 'text-slate-900'}`}>
                     {boldText}
                   </strong>
                 );
@@ -71,7 +74,14 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
   const [currentSummary, setCurrentSummary] = useState(chat.chatSummary || "");
   const [currentOutcome, setCurrentOutcome] = useState(chat.chatOutcome || "Inquiry / Discussion");
   const [analysis, setAnalysis] = useState<any>(chat.rawWebhookPayload?.analysis || null);
+  const [messages, setMessages] = useState<any[]>(Array.isArray(chat.messages) ? chat.messages : []);
+  const [agentEnabled, setAgentEnabled] = useState(chat.agentEnabled !== false);
+  const [draft, setDraft] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isTogglingAgent, setIsTogglingAgent] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
+  const isMessenger = chat.platform === "messenger";
 
   const handleGenerateSummary = async (isAuto = false) => {
     try {
@@ -110,10 +120,37 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
     }
   }, []);
 
+  useEffect(() => {
+    if (!isMessenger) return;
+
+    const poll = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      const res = await getChatMessages(chat._id);
+      if (res.success) {
+        setMessages(res.messages);
+        setAgentEnabled(res.agentEnabled);
+      }
+    };
+
+    const interval = setInterval(poll, 2000);
+    const onVisibility = () => {
+      if (!document.hidden) poll();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [chat._id, isMessenger]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
   const handleCopyTranscript = () => {
-    if (!chat.messages || chat.messages.length === 0) return;
-    const text = chat.messages
-      .map((m: any) => `[${new Date(m.timestamp || chat.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}] ${m.role === 'user' ? 'Customer' : 'Emma (MPH Advisor)'}: ${m.content}`)
+    if (!messages || messages.length === 0) return;
+    const text = messages
+      .map((m: any) => `[${new Date(m.timestamp || chat.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}] ${m.role === 'user' ? 'Customer' : m.role === 'admin' ? 'CRM Admin' : 'Emma (MPH Advisor)'}: ${m.content}`)
       .join('\n\n');
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -152,6 +189,44 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
       toast.error(e.message || "Failed to trigger call");
     } finally {
       setIsCalling(false);
+    }
+  };
+
+  const handleToggleAgent = async () => {
+    try {
+      setIsTogglingAgent(true);
+      const next = !agentEnabled;
+      const res = await setChatAgentEnabled(chat._id, next);
+      if (!res.success) {
+        throw new Error(res.error || "Failed to update Emma replies");
+      }
+      setAgentEnabled(next);
+      toast.success(next ? "Emma auto-replies are on" : "Emma auto-replies are off");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to update Emma replies");
+    } finally {
+      setIsTogglingAgent(false);
+    }
+  };
+
+  const handleSendAdminReply = async () => {
+    const text = draft.trim();
+    if (!text || isSending) return;
+    try {
+      setIsSending(true);
+      const res = await sendAdminMessengerReply(chat._id, text);
+      if (!res.success) {
+        throw new Error(res.error || "Failed to send");
+      }
+      setDraft("");
+      const latest = await getChatMessages(chat._id);
+      if (latest.success) {
+        setMessages(latest.messages);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send to Messenger");
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -363,15 +438,32 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col min-h-[600px]">
             
             {/* Transcript Card Header */}
-            <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between gap-3">
               <div>
                 <h3 className="font-extrabold text-sm text-slate-900">Live Conversation Transcript</h3>
                 <p className="text-[11px] text-slate-400 font-medium">
-                  {chat.messages?.length || 0} messages recorded
+                  {messages.length} messages recorded
+                  {isMessenger ? (agentEnabled ? " · Emma is replying" : " · Human takeover") : ""}
                 </p>
               </div>
 
-              <button
+              <div className="flex items-center gap-2">
+                {isMessenger && (
+                  <button
+                    onClick={handleToggleAgent}
+                    disabled={isTogglingAgent}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border shadow-xs transition-all disabled:opacity-50 ${
+                      agentEnabled
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                        : "bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100"
+                    }`}
+                    title="Turn Emma auto-replies on or off"
+                  >
+                    {agentEnabled ? <Bot className="w-3.5 h-3.5" /> : <BotOff className="w-3.5 h-3.5" />}
+                    <span>{agentEnabled ? "Emma On" : "Emma Off"}</span>
+                  </button>
+                )}
+                <button
                 onClick={handleCopyTranscript}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-xs transition-all"
                 title="Copy entire conversation transcript"
@@ -379,30 +471,40 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
                 <span>{copied ? "Copied!" : "Copy Full Transcript"}</span>
               </button>
+              </div>
             </div>
 
             {/* Messages Feed */}
-            <div className="flex-1 p-6 space-y-5 bg-[#FAFBFD] overflow-y-auto">
-              {(!chat.messages || chat.messages.length === 0) ? (
+            <div className="flex-1 p-6 space-y-5 bg-[#FAFBFD] overflow-y-auto max-h-[560px]">
+              {messages.length === 0 ? (
                 <div className="text-center py-16 text-slate-400 text-xs">
                   No transcript messages available.
                 </div>
               ) : (
-                chat.messages.map((msg: any, idx: number) => {
+                messages.map((msg: any, idx: number) => {
                   const isUser = msg.role === 'user';
+                  const isAdmin = msg.role === 'admin';
                   const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                  const label = isUser
+                    ? (authorName || "Customer")
+                    : isAdmin
+                      ? "CRM Admin"
+                      : "Emma (Author Advisor)";
 
                   return (
                     <div
-                      key={idx}
+                      key={`${msg.timestamp || idx}-${idx}`}
                       className={`flex items-start gap-3 ${
-                        isUser ? 'flex-row-reverse' : 'flex-row'
+                        isUser || isAdmin ? 'flex-row-reverse' : 'flex-row'
                       }`}
                     >
-                      {/* Avatar */}
                       {isUser ? (
                         <div className="w-8 h-8 rounded-full bg-slate-900 flex-shrink-0 flex items-center justify-center text-white shadow-sm mt-0.5 ring-2 ring-slate-800">
                           <User className="w-4 h-4 text-amber-400" />
+                        </div>
+                      ) : isAdmin ? (
+                        <div className="w-8 h-8 rounded-full flex-shrink-0 bg-indigo-600 flex items-center justify-center text-white text-xs font-black shadow-md mt-0.5">
+                          A
                         </div>
                       ) : (
                         <div className="w-8 h-8 rounded-full flex-shrink-0 bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 flex items-center justify-center text-white text-xs font-black shadow-md mt-0.5 border border-amber-300/40 tracking-wider">
@@ -410,31 +512,60 @@ export default function ChatDetailsClient({ chat }: ChatDetailsClientProps) {
                         </div>
                       )}
 
-                      {/* Bubble */}
                       <div
                         className={`relative max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm transition-all ${
                           isUser
                             ? 'bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 text-white rounded-tr-xs shadow-amber-500/20'
+                            : isAdmin
+                              ? 'bg-indigo-600 text-white rounded-tr-xs shadow-indigo-500/20'
                             : 'bg-white text-slate-900 border border-slate-200/80 rounded-tl-xs shadow-slate-200/50'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-4 mb-1">
-                          <span className={`text-[10px] font-bold ${isUser ? 'text-amber-100' : 'text-slate-400'} uppercase tracking-wider`}>
-                            {isUser ? (authorName || "Customer") : "Emma (Author Advisor)"}
+                          <span className={`text-[10px] font-bold ${isUser ? 'text-amber-100' : isAdmin ? 'text-indigo-100' : 'text-slate-400'} uppercase tracking-wider`}>
+                            {label}
                           </span>
                           {timestamp && (
-                            <span className={`text-[10px] font-medium ${isUser ? 'text-amber-200/80' : 'text-slate-400'}`}>
+                            <span className={`text-[10px] font-medium ${isUser ? 'text-amber-200/80' : isAdmin ? 'text-indigo-200/80' : 'text-slate-400'}`}>
                               {timestamp}
                             </span>
                           )}
                         </div>
-                        {renderFormattedMessage(msg.content, isUser)}
+                        {renderFormattedMessage(msg.content, isUser, isAdmin)}
                       </div>
                     </div>
                   );
                 })
               )}
+              <div ref={messagesEndRef} />
             </div>
+
+            {isMessenger && (
+              <form
+                className="border-t border-slate-200 p-4 bg-white flex items-end gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendAdminReply();
+                }}
+              >
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={chat.senderPsid ? "Send a message to Messenger..." : "No Messenger sender ID on this chat"}
+                  disabled={!chat.senderPsid || isSending}
+                  rows={2}
+                  className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400/40 disabled:bg-slate-50"
+                />
+                <button
+                  type="submit"
+                  disabled={!chat.senderPsid || isSending || !draft.trim()}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {isSending ? "Sending..." : "Send"}
+                </button>
+              </form>
+            )}
 
           </div>
         </div>

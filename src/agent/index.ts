@@ -15,7 +15,7 @@ export async function executeChatAgent({
   sessionId,
   userMessage,
   platform = 'web',
-  userProfile,
+  skipPersistUserMessage = false,
 }: ChatAgentOptions): Promise<ChatAgentResponse> {
   await connectDB();
 
@@ -30,9 +30,12 @@ export async function executeChatAgent({
 
   if (chatLog && Array.isArray(chatLog.messages)) {
     if (chatLog.messages.length > 0) {
-      const lastMsg = chatLog.messages[chatLog.messages.length - 1];
-      if (lastMsg.timestamp) {
-        hoursSinceLastMessage = (new Date().getTime() - new Date(lastMsg.timestamp).getTime()) / (1000 * 60 * 60);
+      const gapFrom =
+        skipPersistUserMessage && chatLog.messages.length > 1
+          ? chatLog.messages[chatLog.messages.length - 2]
+          : chatLog.messages[chatLog.messages.length - 1];
+      if (gapFrom?.timestamp) {
+        hoursSinceLastMessage = (new Date().getTime() - new Date(gapFrom.timestamp).getTime()) / (1000 * 60 * 60);
       }
     }
 
@@ -43,17 +46,31 @@ export async function executeChatAgent({
         pastMessages.push(new HumanMessage(msg.content));
       } else if (msg.role === 'agent') {
         pastMessages.push(new AIMessage(msg.content));
+      } else if (msg.role === 'admin') {
+        pastMessages.push(
+          new SystemMessage(`[STAFF NOTE: A CRM admin already told the customer: "${msg.content}". Do not repeat or contradict this.]`)
+        );
       }
     }
   }
 
-  // 2. Add current incoming user message
+  // 2. Add current incoming user message (skip if webhook already persisted it into history)
+  const lastPersisted = chatLog?.messages?.[chatLog.messages.length - 1];
+  const alreadyInHistory =
+    skipPersistUserMessage &&
+    lastPersisted?.role === 'user' &&
+    lastPersisted.content === userMessage;
+
   let finalUserMessage = userMessage;
   if (hoursSinceLastMessage >= 12) {
     finalUserMessage = `[SYSTEM NOTE: The user has returned after a delay of ${Math.round(hoursSinceLastMessage)} hours. Before continuing with the current conversation stage, acknowledge their return politely (e.g. "Welcome back!", "Glad to see you again!"), briefly recap where you left off if appropriate, and then naturally transition back to the current goal.]\n\n${userMessage}`;
   }
 
-  pastMessages.push(new HumanMessage(finalUserMessage));
+  if (!alreadyInHistory) {
+    pastMessages.push(new HumanMessage(finalUserMessage));
+  } else if (hoursSinceLastMessage >= 12 && pastMessages.length > 0) {
+    pastMessages[pastMessages.length - 1] = new HumanMessage(finalUserMessage);
+  }
 
   // 3. Execute the LangGraph State Machine
   console.log(`🤖 [LangGraph Agent] Executing turn for Session [${sessionId}] (${platform})...`);
@@ -78,18 +95,25 @@ export async function executeChatAgent({
 
   // 5. Persist the turn to MongoDB
   const now = new Date();
-  const newTurns: IChatMessage[] = [
-    { role: 'user', content: userMessage, timestamp: now },
-    { role: 'agent', content: finalReply, timestamp: now },
-  ];
+  const existingMessages = chatLog?.messages || [];
+  const existingUserCount = existingMessages.filter((m) => m.role === 'user').length;
+  const isFirstMessage = skipPersistUserMessage
+    ? existingUserCount <= 1 && existingMessages.filter((m) => m.role === 'agent').length === 0
+    : existingUserCount === 0;
 
-  const isFirstMessage = !chatLog || (chatLog.messages && chatLog.messages.length === 0);
+  const newTurns: IChatMessage[] = skipPersistUserMessage
+    ? [{ role: 'agent', content: finalReply, timestamp: now }]
+    : [
+        { role: 'user', content: userMessage, timestamp: now },
+        { role: 'agent', content: finalReply, timestamp: now },
+      ];
 
   if (!chatLog) {
     chatLog = new ChatLogModel({
       senderPsid: sessionId,
       platform: platform,
       chatStatus: 'completed',
+      agentEnabled: true,
       messages: newTurns,
       conversationStage: newStage,
     });

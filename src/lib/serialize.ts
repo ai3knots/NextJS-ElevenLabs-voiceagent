@@ -38,6 +38,8 @@ export function sanitizeChatLog(doc: any) {
         }))
       : [],
     chatStatus: doc.chatStatus || 'completed',
+    chatType: doc.chatType || 'SMM',
+    agentEnabled: doc.agentEnabled !== false,
     chatSummary: doc.chatSummary || '',
     chatErrorReason: doc.chatErrorReason || '',
     chatOutcome: doc.chatOutcome || '',

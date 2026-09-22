@@ -1,7 +1,9 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export type ChatMessageRole = 'user' | 'agent' | 'admin';
+
 export interface IChatMessage {
-  role: 'user' | 'agent';
+  role: ChatMessageRole;
   content: string;
   timestamp?: Date;
 }
@@ -19,6 +21,7 @@ export interface IChatLog extends Document {
   chatType?: 'SMM' | 'Live';
   conversationStage?: 'INITIAL_ENGAGEMENT' | 'QUALIFYING' | 'VALUE_CREATION' | 'CONTACT_CAPTURE' | 'PLANS' | 'SCHEDULING';
   followUpRequired?: boolean;
+  agentEnabled?: boolean;
   rawWebhookPayload?: any;
   createdAt: Date;
   updatedAt: Date;
@@ -32,12 +35,13 @@ const ChatLogSchema: Schema = new Schema(
     platform: { type: String, enum: ['web', 'messenger'], default: 'web' },
     messages: [
       {
-        role: { type: String, enum: ['user', 'agent'], required: true },
+        role: { type: String, enum: ['user', 'agent', 'admin'], required: true },
         content: { type: String, required: true },
         timestamp: { type: Date, default: Date.now },
       },
     ],
     chatStatus: { type: String, required: true, default: 'completed' },
+    agentEnabled: { type: Boolean, default: true },
     chatSummary: { type: String },
     chatErrorReason: { type: String },
     chatOutcome: { type: String },

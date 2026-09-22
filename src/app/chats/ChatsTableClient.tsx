@@ -116,6 +116,11 @@ export default function ChatsTableClient({ chats }: { chats: any[] }) {
                             <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-bold text-slate-600">
                               {chat.platform === 'messenger' ? 'Meta Messenger' : 'Web Chat'}
                             </span>
+                            {chat.platform === 'messenger' && chat.agentEnabled === false && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                                Bot off
+                              </span>
+                            )}
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${chat.chatType === 'Live' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'}`}>
                               {chat.chatType === 'Live' ? 'Live Chat' : 'SMM Chat'}
                             </span>

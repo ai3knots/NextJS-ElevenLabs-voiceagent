@@ -6,6 +6,7 @@ export interface ChatAgentOptions {
   sessionId: string;
   userMessage: string;
   platform?: 'web' | 'messenger';
+  skipPersistUserMessage?: boolean;
   userProfile?: {
     firstName?: string;
     lastName?: string;

@@ -3,6 +3,8 @@
 import connectDB from "@/lib/mongodb";
 import ChatLogModel from "@/models/ChatLog";
 import LeadModel from "@/models/Lead";
+import { sendMessageToMeta } from "@/lib/meta";
+import { appendChatMessage } from "@/lib/chatLog";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { revalidatePath } from "next/cache";
@@ -41,7 +43,7 @@ export async function generateChatSummaryAction(chatId: string) {
 
     // Format full transcript for LLM
     const transcriptText = chat.messages
-      .map((m: any) => `${m.role === "user" ? "Customer" : "Emma (MPH Advisor)"}: ${m.content}`)
+      .map((m: any) => `${m.role === "user" ? "Customer" : m.role === "admin" ? "CRM Admin" : "Emma (MPH Advisor)"}: ${m.content}`)
       .join("\n");
 
     const llm = new ChatGoogleGenerativeAI({
@@ -161,5 +163,84 @@ export async function deleteAllChatsAction() {
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+}
+
+export async function getChatMessages(chatId: string) {
+  try {
+    await connectDB();
+    const chat = await ChatLogModel.findById(chatId).select('messages agentEnabled platform senderPsid').lean();
+    if (!chat) {
+      return { success: false as const, error: 'Chat not found' };
+    }
+    return {
+      success: true as const,
+      messages: (chat.messages || []).map((m: any) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp ? new Date(m.timestamp).toISOString() : null,
+      })),
+      agentEnabled: chat.agentEnabled !== false,
+      platform: chat.platform || 'web',
+      senderPsid: chat.senderPsid || '',
+    };
+  } catch (error: any) {
+    return { success: false as const, error: error.message || 'Failed to load messages' };
+  }
+}
+
+export async function setChatAgentEnabled(chatId: string, enabled: boolean) {
+  try {
+    await connectDB();
+    const chat = await ChatLogModel.findById(chatId);
+    if (!chat) {
+      return { success: false, error: 'Chat not found' };
+    }
+    chat.agentEnabled = enabled;
+    await chat.save();
+    revalidatePath(`/chats/${chatId}`);
+    revalidatePath('/chats');
+    return { success: true, agentEnabled: enabled };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to update agent setting' };
+  }
+}
+
+export async function sendAdminMessengerReply(chatId: string, text: string) {
+  const trimmed = (text || '').trim();
+  if (!trimmed) {
+    return { success: false, error: 'Message cannot be empty' };
+  }
+
+  try {
+    await connectDB();
+    const chat = await ChatLogModel.findById(chatId);
+    if (!chat) {
+      return { success: false, error: 'Chat not found' };
+    }
+    if (chat.platform !== 'messenger') {
+      return { success: false, error: 'CRM send is only available for Messenger chats' };
+    }
+    if (!chat.senderPsid) {
+      return { success: false, error: 'Missing Messenger sender ID' };
+    }
+
+    const result = await sendMessageToMeta(chat.senderPsid, trimmed);
+    if (!result.success) {
+      return { success: false, error: typeof result.error === 'string' ? result.error : 'Failed to send to Messenger' };
+    }
+
+    await appendChatMessage({
+      chatId,
+      senderPsid: chat.senderPsid,
+      platform: 'messenger',
+      role: 'admin',
+      content: trimmed,
+    });
+
+    revalidatePath(`/chats/${chatId}`);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to send message' };
   }
 }
