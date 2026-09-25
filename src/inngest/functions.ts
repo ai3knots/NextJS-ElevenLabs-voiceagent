@@ -66,7 +66,8 @@ export const initiateOutboundCall = inngest.createFunction(
         last_summary: lead.lastCallSummary || lead.callSummary || "No previous summary available.",
         context: lead.context || "",
         recent_calls_context: recentCallsContext,
-        call_direction: "outbound"
+        call_direction: "outbound",
+        business_context: JSON.stringify(lead)
       };
 
       const response = await triggerOutboundCall(lead.phoneNumber, dynamicVariables, agentId, agentPhoneNumberId);

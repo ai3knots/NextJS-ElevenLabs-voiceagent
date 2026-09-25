@@ -64,7 +64,8 @@ export async function POST(request: Request) {
       company: lead.company || "",
       context: lead.context || "",
       recent_calls_context: recentCallsContext,
-      call_direction: "inbound" // Since this webhook only fires on incoming calls
+      call_direction: "inbound", // Since this webhook only fires on incoming calls
+      business_context: JSON.stringify(lead)
     };
 
     console.log(`Webhook Response: ${JSON.stringify(dynamicVariables)}`);
